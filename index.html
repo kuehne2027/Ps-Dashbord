@@ -1,0 +1,2614 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kuehne+Nagel · Painel Operacional</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg-0:#EEF2F8;
+    --bg-1:#FFFFFF;
+    --bg-2:#F3F6FB;
+    --border:#D7E1EE;
+    --border-soft:#E6ECF5;
+    --text-hi:#0B2545;
+    --text-mid:#51617A;
+    --text-lo:#8E9BB0;
+    --amber:#C97D0C;
+    --cyan:#0B5FA5;
+    --violet:#003269;
+    --green:#1E9E63;
+    --red:#E0453F;
+    --kn-navy:#003269;
+    --kn-blue:#0B5FA5;
+    --kn-sky:#7FB3E8;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse 1200px 500px at 10% -10%, rgba(127,179,232,0.16), transparent 60%),
+      radial-gradient(ellipse 900px 400px at 100% 0%, rgba(11,95,165,0.06), transparent 55%),
+      var(--bg-0);
+    color:var(--text-hi);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:28px 32px 60px;
+  }
+
+  /* ===== HEADER ===== */
+  /* ---------- Kuehne+Nagel brand bar ---------- */
+  .kn-brand-bar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:20px;
+  }
+  .kn-logo-mark{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:38px;
+    height:38px;
+    border-radius:8px;
+    background:linear-gradient(135deg, var(--kn-blue), var(--kn-navy));
+    color:#fff;
+    font-family:var(--sans);
+    font-weight:800;
+    font-size:15px;
+    letter-spacing:-0.03em;
+    flex-shrink:0;
+    box-shadow:0 4px 14px rgba(0,50,105,.25);
+  }
+  .kn-brand-text{
+    display:flex;
+    flex-direction:column;
+    line-height:1.15;
+  }
+  .kn-brand-text .kn-name{
+    font-size:15px;
+    font-weight:700;
+    color:var(--text-hi);
+    letter-spacing:-.01em;
+  }
+  .kn-brand-text .kn-tagline{
+    font-size:10.5px;
+    color:var(--text-lo);
+    letter-spacing:.08em;
+    text-transform:uppercase;
+  }
+
+  .topbar{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:24px;
+    padding:22px 26px;
+    border-radius:16px;
+    margin-bottom:26px;
+    flex-wrap:wrap;
+    background:linear-gradient(135deg, var(--kn-navy) 0%, var(--kn-blue) 100%);
+    box-shadow:0 10px 28px rgba(0,50,105,.22);
+  }
+  .brand-block .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.18em;
+    color:rgba(255,255,255,.78);
+    text-transform:uppercase;
+    margin:0 0 6px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .brand-block .eyebrow .dot{
+    width:6px;height:6px;border-radius:50%;
+    background:#5FE0A3;
+    box-shadow:0 0 0 3px rgba(95,224,163,0.28);
+    animation:pulse 2s infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:.35;}
+  }
+  .brand-block h1{
+    margin:0;
+    font-size:26px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+    color:#fff;
+  }
+  .brand-block p{
+    margin:4px 0 0;
+    font-size:13px;
+    color:rgba(255,255,255,.72);
+  }
+  .clock{
+    font-family:var(--mono);
+    font-size:12px;
+    color:rgba(255,255,255,.72);
+    text-align:right;
+  }
+  .clock strong{
+    display:block;
+    font-size:15px;
+    color:#fff;
+    letter-spacing:.02em;
+  }
+  .refresh-btn{
+    margin-top:8px;
+    appearance:none;
+    border:1px solid rgba(255,255,255,.35);
+    background:rgba(255,255,255,.08);
+    color:#fff;
+    font-family:inherit;
+    font-size:12px;
+    font-weight:600;
+    padding:6px 12px;
+    border-radius:7px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .refresh-btn:hover{ background:rgba(255,255,255,.16); }
+  .refresh-btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .refresh-btn #refreshIcon.spinning{ display:inline-block; animation:spin 0.8s linear infinite; }
+  @keyframes spin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+
+  /* ===== UPLOAD ZONE ===== */
+  .upload-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+    margin-bottom:28px;
+  }
+  .drop{
+    border:1.5px dashed var(--border);
+    background:var(--bg-1);
+    border-radius:10px;
+    padding:16px 18px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+    position:relative;
+    box-shadow:0 1px 2px rgba(11,37,69,.04);
+  }
+  .drop:hover{ border-color:var(--cyan); }
+  .drop.is-dragover{ border-color:var(--amber); background:var(--bg-2); }
+  .drop.is-loaded{ border-color:var(--green); }
+  .drop input{ display:none; }
+  .drop-icon{
+    width:36px;height:36px;border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--bg-2);
+    border:1px solid var(--border);
+    flex-shrink:0;
+    font-family:var(--mono);
+    font-size:15px;
+    color:var(--cyan);
+  }
+  .drop.is-loaded .drop-icon{ color:var(--green); border-color:rgba(30,158,99,.4); }
+  .drop-text .label{
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--text-hi);
+    margin-bottom:2px;
+  }
+  .drop-text .sub{
+    font-size:11.5px;
+    color:var(--text-lo);
+    font-family:var(--mono);
+  }
+  .drop-status{
+    margin-left:auto;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-lo);
+    text-align:right;
+    max-width:180px;
+  }
+
+  /* ===== CARDS ===== */
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:14px;
+  }
+  @media (max-width:1100px){
+    .cards{ grid-template-columns:repeat(2,1fr); }
+    .upload-row{ grid-template-columns:1fr; }
+  }
+  .card{
+    background:var(--bg-1);
+    border:1px solid var(--border-soft);
+    border-radius:12px;
+    padding:18px 18px 16px;
+    position:relative;
+    overflow:hidden;
+    min-height:132px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    box-shadow:0 1px 3px rgba(11,37,69,.06), 0 1px 2px rgba(11,37,69,.04);
+  }
+  .card::before{
+    content:"";
+    position:absolute;
+    top:0;left:0;right:0;height:3px;
+    background:var(--accent, var(--cyan));
+    opacity:.9;
+  }
+  .card.total::before{ background:var(--violet); }
+  .card.d1::before{ background:var(--amber); }
+  .card.onway::before{ background:var(--cyan); }
+  .card.recebido::before{ background:var(--green); }
+  .card.carrinho::before{ background:var(--red); }
+
+  .card .label{
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    color:var(--text-mid);
+    font-weight:600;
+  }
+  .card .value{
+    font-family:var(--mono);
+    font-size:34px;
+    font-weight:700;
+    letter-spacing:-0.02em;
+    color:var(--text-hi);
+    margin-top:6px;
+  }
+  .card.total .value{ color:var(--violet); }
+  .card.d1 .value{ color:var(--amber); }
+  .card.onway .value{ color:var(--cyan); }
+  .card.recebido .value{ color:var(--green); }
+  .card.carrinho .value{ color:var(--red); }
+
+  .card .foot{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:12px;
+  }
+  .card .pct{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--text-mid);
+  }
+  .card .foot-secondary{
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px dashed var(--border-soft);
+  }
+  .card .foot-secondary .foot-label{
+    font-size:11px;
+    color:var(--text-lo);
+  }
+  .card .foot-secondary .pct{
+    font-weight:700;
+    color:var(--kn-blue);
+  }
+  .pendente-badge{
+    display:inline-block;
+    margin-top:14px;
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--kn-blue);
+    background:rgba(11,95,165,.1);
+    padding:5px 10px;
+    border-radius:7px;
+  }
+  .pendente-badge b{ font-weight:800; }
+
+  /* ---------- ajuste manual do Total Geral ---------- */
+  .card .label{ display:flex; align-items:center; gap:6px; }
+  .edit-total-btn{
+    appearance:none;
+    border:1px solid var(--border);
+    background:var(--bg-2);
+    color:var(--text-mid);
+    width:20px;height:20px;
+    border-radius:6px;
+    font-size:11px;
+    line-height:1;
+    cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .edit-total-btn:hover{ border-color:var(--cyan); color:var(--cyan); }
+  .total-mode-tag{
+    font-family:var(--mono);
+    font-size:9.5px;
+    font-weight:700;
+    letter-spacing:.03em;
+    color:var(--amber);
+    background:rgba(201,125,12,.12);
+    padding:2px 6px;
+    border-radius:5px;
+    text-transform:uppercase;
+  }
+  .total-manual-row{
+    margin-top:10px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .total-manual-row input{
+    width:100px;
+    font-family:var(--mono);
+    font-size:13px;
+    padding:5px 8px;
+    border:1px solid var(--border);
+    border-radius:7px;
+    background:var(--bg-1);
+    color:var(--text-hi);
+  }
+  .total-manual-row button{
+    appearance:none;
+    border:1px solid var(--border);
+    background:var(--bg-2);
+    color:var(--text-mid);
+    font-family:inherit;
+    font-size:11px;
+    font-weight:600;
+    padding:5px 9px;
+    border-radius:7px;
+    cursor:pointer;
+  }
+  .total-manual-row button.primary{
+    border-color:var(--cyan);
+    color:#fff;
+    background:var(--cyan);
+  }
+  .total-manual-row button:hover{ filter:brightness(0.97); }
+  .bar-track{
+    height:4px;
+    border-radius:2px;
+    background:var(--bg-2);
+    overflow:hidden;
+    margin-top:8px;
+  }
+  .bar-fill{
+    height:100%;
+    width:0%;
+    background:var(--accent, var(--cyan));
+    transition:width .6s cubic-bezier(.4,0,.2,1);
+  }
+  .card.total .bar-fill{ background:var(--violet); }
+  .card.d1 .bar-fill{ background:var(--amber); }
+  .card.onway .bar-fill{ background:var(--cyan); }
+  .card.recebido .bar-fill{ background:var(--green); }
+  .card.carrinho .bar-fill{ background:var(--red); }
+
+  /* ===== PANELS (charts/tables) ===== */
+  .panels{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:16px;
+    margin-top:16px;
+  }
+  .panel{
+    background:var(--bg-1);
+    border:1px solid var(--border-soft);
+    border-radius:12px;
+    padding:18px 20px 12px;
+    box-shadow:0 1px 3px rgba(11,37,69,.06), 0 1px 2px rgba(11,37,69,.04);
+  }
+  .panel-title{
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:.02em;
+    color:var(--text-hi);
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .panel-title .swatch{
+    width:8px;height:8px;border-radius:2px;
+    background:var(--cyan);
+  }
+  .chart-wrap{
+    position:relative;
+    height:350px;
+  }
+
+  .panels-row{
+    display:grid;
+    grid-template-columns:1.35fr 1fr;
+    gap:16px;
+  }
+  @media (max-width:1100px){
+    .panels-row{ grid-template-columns:1fr; }
+  }
+  .panel-title .total-badge{
+    margin-left:auto;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-mid);
+    font-weight:500;
+  }
+
+  /* ===== TABLE PANEL ===== */
+  .data-table{
+    width:100%;
+    border-collapse:collapse;
+    font-family:var(--mono);
+    font-size:12.5px;
+  }
+  .data-table thead th{
+    text-align:left;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--text-mid);
+    font-weight:700;
+    padding:6px 10px;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .data-table thead th.num{ text-align:right; }
+  .data-table tbody td{
+    padding:8px 10px;
+    color:var(--text-hi);
+    font-weight:600;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .data-table tbody td.num{ text-align:right; font-weight:700; }
+  .data-table tbody tr:nth-child(even){ background:rgba(11,37,69,0.02); }
+  .data-table tbody tr:hover{ background:var(--bg-2); }
+  .data-table .origin-cell{ font-weight:800; color:var(--text-hi); }
+  .data-table .c-early{ color:var(--text-mid); font-weight:700; }
+  .data-table .c-ontime{ color:var(--amber); font-weight:800; }
+  .data-table .c-delay{ color:var(--cyan); font-weight:800; }
+  .data-table .c-pct{ color:var(--green); font-weight:800; }
+  .table-scroll{
+    max-height:280px;
+    overflow-y:auto;
+  }
+  .table-scroll::-webkit-scrollbar{ width:6px; }
+  .table-scroll::-webkit-scrollbar-thumb{ background:var(--border); border-radius:3px; }
+
+  .panels-row-3{
+    grid-template-columns:1.3fr 1.1fr 0.7fr;
+  }
+  @media (max-width:1300px){
+    .panels-row-3{ grid-template-columns:1fr; }
+  }
+  .data-table.compact{
+    font-size:11.5px;
+  }
+  .data-table.compact th,
+  .data-table.compact td{
+    padding:5px 8px;
+  }
+
+  /* ===== ACTIONS / EXPORT ===== */
+  .actions-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:22px;
+  }
+  .export-btn{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--bg-1);
+    border:1px solid var(--border);
+    color:var(--text-hi);
+    font-family:var(--sans);
+    font-size:13px;
+    font-weight:600;
+    padding:10px 18px;
+    border-radius:9px;
+    cursor:pointer;
+    box-shadow:0 1px 2px rgba(11,37,69,.05);
+    transition:border-color .15s ease, background .15s ease, transform .1s ease;
+  }
+  .export-btn:hover:not(:disabled){
+    border-color:var(--kn-blue);
+    background:var(--bg-2);
+  }
+  .export-btn:active:not(:disabled){ transform:scale(0.98); }
+  .export-btn:disabled{
+    opacity:.45;
+    cursor:not-allowed;
+  }
+  .export-icon{ font-size:14px; }
+  .export-hint{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-lo);
+  }
+
+  /* ===== ORIGIN FILTER ===== */
+  .filter-row{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:22px;
+    padding:12px 16px;
+    background:var(--bg-1);
+    border:1px solid var(--border-soft);
+    border-radius:10px;
+    box-shadow:0 1px 2px rgba(11,37,69,.04);
+  }
+  .filter-label{
+    font-size:12px;
+    color:var(--text-mid);
+    font-weight:600;
+    white-space:nowrap;
+  }
+  .filter-select{
+    background:var(--bg-2);
+    border:1px solid var(--border);
+    color:var(--text-hi);
+    font-family:var(--mono);
+    font-size:12px;
+    padding:6px 10px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .filter-select:focus{ outline:none; border-color:var(--cyan); }
+  .chip-list{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .chip{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:rgba(224,69,63,0.09);
+    border:1px solid rgba(224,69,63,0.32);
+    color:#B23B36;
+    font-family:var(--mono);
+    font-size:11.5px;
+    padding:4px 6px 4px 10px;
+    border-radius:14px;
+  }
+  .chip button{
+    background:none;
+    border:none;
+    color:#B23B36;
+    cursor:pointer;
+    font-size:13px;
+    line-height:1;
+    padding:2px 4px;
+    border-radius:50%;
+  }
+  .chip button:hover{ background:rgba(224,69,63,0.18); }
+
+  .empty-hint{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-lo);
+    margin-top:22px;
+    text-align:center;
+    letter-spacing:.03em;
+  }
+
+  .error-box{
+    margin-top:16px;
+    border:1px solid rgba(224,69,63,.35);
+    background:rgba(224,69,63,.07);
+    color:#B23B36;
+    padding:12px 16px;
+    border-radius:8px;
+    font-size:12.5px;
+    font-family:var(--mono);
+    display:none;
+    white-space:pre-wrap;
+  }
+
+  /* ---------- app layout: sidebar + main content ---------- */
+  .app-layout{
+    display:flex;
+    align-items:flex-start;
+    gap:24px;
+    margin-top:16px;
+  }
+  .app-sidebar{
+    width:200px;
+    flex-shrink:0;
+    position:sticky;
+    top:16px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    border-right:1px solid var(--border-soft);
+    padding-right:16px;
+  }
+  .app-main{
+    flex:1;
+    min-width:0;
+  }
+  .tab-btn{
+    appearance:none;
+    border:1px solid transparent;
+    background:transparent;
+    color:var(--text-mid);
+    font-family:inherit;
+    font-size:13.5px;
+    font-weight:600;
+    text-align:left;
+    padding:11px 14px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:color .15s ease, background .15s ease, border-color .15s ease;
+    white-space:nowrap;
+  }
+  .tab-btn:hover{ color:var(--text-hi); background:var(--bg-2); }
+  .tab-btn.active{
+    color:#fff;
+    background:var(--kn-navy);
+    border-color:var(--kn-navy);
+    box-shadow:0 2px 8px rgba(0,50,105,.25);
+  }
+  @media (max-width:760px){
+    .app-layout{ flex-direction:column; gap:8px; }
+    .app-sidebar{
+      width:100%;
+      position:static;
+      flex-direction:row;
+      border-right:none;
+      border-bottom:1px solid var(--border-soft);
+      padding-right:0;
+      padding-bottom:8px;
+      overflow-x:auto;
+    }
+    .tab-btn{ white-space:nowrap; }
+  }
+
+  /* ---------- layout de página central (usado na aba Chegada) ---------- */
+  .chegada-wrap{
+    max-width:960px;
+    margin:0 auto;
+    padding-top:8px;
+  }
+  .chegada-page-header{ margin-bottom:18px; }
+  .chegada-page-header h1{ margin:4px 0; color:var(--text-hi); }
+  .chegada-page-header p{ color:var(--text-mid); font-size:13px; margin:0; }
+
+  .chegada-hint{ font-size:11px; color:var(--text-lo); margin:8px 2px 0; }
+  .chegada-table-full{ max-height:none; overflow:visible; }
+  .col-total{ color:var(--kn-blue) !important; background:rgba(11,95,165,.07); font-weight:800 !important; }
+  .grand-total-badge{
+    font-family:var(--mono);
+    font-size:12.5px;
+    font-weight:800;
+    color:var(--kn-blue);
+    background:rgba(11,95,165,.1);
+    padding:4px 10px;
+    border-radius:6px;
+    margin-left:10px;
+  }
+  th.sortable{ cursor:pointer; user-select:none; }
+  th.sortable:hover{ color:var(--kn-blue); }
+  th.sortable .sort-arrow{ font-size:9px; opacity:.6; margin-left:3px; }
+</style>
+</head>
+
+
+<body>
+
+  <div class="kn-brand-bar">
+    <div class="kn-logo-mark">K+N</div>
+    <div class="kn-brand-text">
+      <span class="kn-name">Kuehne+Nagel</span>
+      <span class="kn-tagline">Painel Operacional &middot; Logística</span>
+    </div>
+  </div>
+
+  <div class="upload-row">
+    <label class="drop" id="dropBase1">
+      <input type="file" id="fileBase1" accept=".xlsx,.xls">
+      <div class="drop-icon">①</div>
+      <div class="drop-text">
+        <div class="label">Base estrutura (.xlsx)</div>
+        <div class="sub">aceita formato BASE+PLANIFICATION ou Planification (RTG)</div>
+      </div>
+      <div class="drop-status" id="statusBase1">arraste ou clique</div>
+    </label>
+
+    <label class="drop" id="dropBase2">
+      <input type="file" id="fileBase2" accept=".csv">
+      <div class="drop-icon">②</div>
+      <div class="drop-text">
+        <div class="label">Base faltantes (.csv)</div>
+        <div class="sub">ID do pacote + Localização</div>
+      </div>
+      <div class="drop-status" id="statusBase2">arraste ou clique</div>
+    </label>
+  </div>
+
+  <div class="app-layout">
+    <div class="app-sidebar">
+      <button class="tab-btn active" id="tabBtnDashboard" type="button">📊 Dashboard</button>
+      <button class="tab-btn" id="tabBtnChegada" type="button">🚚 Total por Origem</button>
+    </div>
+
+    <div class="app-main">
+
+  <div id="viewDashboard">
+
+  <div class="actions-row">
+    <button class="export-btn" id="btnExport" disabled>
+      <span class="export-icon">📋</span> Copiar / Compartilhar
+    </button>
+    <button class="export-btn" id="btnExtractData" disabled>
+      <span class="export-icon">🔢</span> Extrair IDs (D-1 / On Way / Recebido)
+    </button>
+    <button class="export-btn" id="btnClearSaved" type="button" title="Remove as bases salvas no banco de dados do painel">
+      <span class="export-icon">🗑️</span> Limpar dados salvos
+    </button>
+    <span class="export-hint" id="exportHint">envie as duas bases para liberar</span>
+  </div>
+
+  <div class="filter-row" id="filterRow" style="display:none;">
+    <span class="filter-label">Excluir origens do card/gráfico "On Way":</span>
+    <select id="originFilterSelect" class="filter-select">
+      <option value="">+ selecionar origem…</option>
+    </select>
+    <div class="chip-list" id="excludedChips"></div>
+  </div>
+
+  <div id="captureArea">
+    <div class="topbar">
+      <div class="brand-block">
+        <p class="eyebrow"><span class="dot"></span>Painel operacional &middot; ao vivo</p>
+        <h1>Dashboard Operacional</h1>
+        <p id="cicloBadge" style="display:none;">Ciclo —</p>
+      </div>
+      <div class="clock">
+        Última atualização
+        <strong id="clockTime">--:--</strong>
+        <button id="btnRefreshData" class="refresh-btn" type="button" title="Atualiza sozinho a cada 45s — clique pra forçar agora">
+          <span id="refreshIcon">🔄</span> Atualizar
+        </button>
+      </div>
+    </div>
+
+    <div class="cards">
+    <div class="card total" style="--accent:var(--violet)">
+      <div class="label">
+        Total Geral
+        <span class="total-mode-tag" id="totalGeralModeTag" style="display:none;">manual</span>
+        <button type="button" class="edit-total-btn" id="btnEditTotal" title="Ajustar total geral manualmente">✎</button>
+      </div>
+      <div class="value" id="valTotal">—</div>
+      <div class="total-manual-row" id="totalManualRow" style="display:none;">
+        <input type="number" id="inputTotalManual" min="0" step="1" placeholder="valor manual">
+        <button type="button" class="primary" id="btnSaveTotalManual">Salvar</button>
+        <button type="button" id="btnClearTotalManual">Usar automático</button>
+      </div>
+      <div class="pendente-badge" id="valPendenteSortingWrap">Pendente de sorting: <b id="valPendenteSorting">—</b></div>
+    </div>
+
+    <div class="card d1" style="--accent:var(--amber)">
+      <div class="label">D-1</div>
+      <div class="value" id="valD1">—</div>
+      <div class="foot"><span class="pct" id="pctD1">0%</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barD1"></div></div>
+    </div>
+
+    <div class="card onway" style="--accent:var(--cyan)">
+      <div class="label">On Way</div>
+      <div class="value" id="valOnWay">—</div>
+      <div class="foot"><span class="pct" id="pctOnWay">0%</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barOnWay"></div></div>
+    </div>
+
+    <div class="card recebido" style="--accent:var(--green)">
+      <div class="label">Recebido do Dia</div>
+      <div class="value" id="valRecebido">—</div>
+      <div class="foot"><span class="pct" id="pctRecebido">0%</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barRecebido"></div></div>
+    </div>
+
+    <div class="card carrinho" style="--accent:var(--red)">
+      <div class="label">No Carrinho</div>
+      <div class="value" id="valCarrinho">—</div>
+      <div class="foot"><span class="pct" id="pctCarrinho">0%</span></div>
+      <div class="bar-track"><div class="bar-fill" id="barCarrinho"></div></div>
+    </div>
+  </div>
+
+  <div class="panels" id="panelsWrap" style="display:none;">
+    <div class="panels-row">
+      <div class="panel">
+        <p class="panel-title"><span class="swatch"></span>On Way por Origem (On Time / Early / Delay)</p>
+        <div class="chart-wrap">
+          <canvas id="chartOrigem"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <p class="panel-title">
+          <span class="swatch" style="background:var(--amber)"></span>Resumo Geral por Status
+          <span class="total-badge" id="statusTotalBadge"></span>
+        </p>
+        <div class="chart-wrap">
+          <canvas id="chartStatus"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="panels-row panels-row-3">
+      <div class="panel">
+        <p class="panel-title"><span class="swatch" style="background:var(--green)"></span>Origens Com % Mais Early</p>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Origem</th>
+                <th class="num">Early</th>
+                <th class="num">On Time</th>
+                <th class="num">Delay</th>
+                <th class="num">Total</th>
+                <th class="num">%</th>
+              </tr>
+            </thead>
+            <tbody id="tblEarly"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="panel-title">
+          <span class="swatch" style="background:var(--red)"></span>Recebidos Não Atrelados
+          <span class="total-badge" id="naoAtreladosBadge"></span>
+        </p>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>ID do Pacote</th>
+                <th>Origem</th>
+                <th>Rota</th>
+                <th class="num">Tempo</th>
+              </tr>
+            </thead>
+            <tbody id="tblNaoAtrelados"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="panel-title" style="color:var(--red)">
+          <span class="swatch" style="background:var(--red)"></span>
+          <span style="color:var(--red)">Mapa de Calor</span>
+          <span class="total-badge" id="ilhasBadge"></span>
+        </p>
+        <table class="data-table compact">
+          <thead>
+            <tr><th>Ilha</th><th class="num">Buffer</th><th>Ilha</th><th class="num">Buffer</th></tr>
+          </thead>
+          <tbody id="tblIlhas"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="empty-hint" id="emptyHint">Envie as duas bases acima para calcular os indicadores.</div>
+  </div>
+
+  </div><!-- /viewDashboard -->
+
+  <div id="viewChegada" style="display:none;">
+    <div class="chegada-wrap">
+      <div id="chegadaCaptureArea">
+        <div class="chegada-page-header">
+          <p class="eyebrow"><span class="dot"></span>Chegada de veículos</p>
+          <h1>Carros por Origem</h1>
+          <p>Quantidade de pacotes On Time, Early e Delay, por origem, com previsão de chegada.</p>
+        </div>
+
+        <div class="panels" id="chegadaOrigemWrap" style="display:none;">
+          <div class="panel">
+            <p class="panel-title">
+              <span class="swatch" style="background:var(--cyan)"></span>Carros por Origem
+              <span class="total-badge" id="chegadaOrigemBadge"></span>
+              <span class="grand-total-badge" id="chegadaGrandTotalBadge">On Time + Early + Delay: 0</span>
+            </p>
+            <div class="table-scroll chegada-table-full">
+              <table class="data-table" id="tblChegadaOrigemTable">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Hora</th>
+                    <th data-sort="origin" class="sortable">Origem</th>
+                    <th data-sort="onTime" class="sortable num">On Time</th>
+                    <th data-sort="early" class="sortable num">Early</th>
+                    <th data-sort="delay" class="sortable num">Delay</th>
+                    <th data-sort="total" class="sortable num col-total">Total</th>
+                  </tr>
+                </thead>
+                <tbody id="tblChegadaOrigem"></tbody>
+                <tfoot>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td><b>Total (On Time + Early + Delay)</b></td>
+                    <td class="num" id="chegadaOrigemTotalOnTime"><b>0</b></td>
+                    <td class="num" id="chegadaOrigemTotalEarly"><b>0</b></td>
+                    <td class="num" id="chegadaOrigemTotalDelay"><b>0</b></td>
+                    <td class="num col-total" id="chegadaOrigemTotalTotal"><b>0</b></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <p class="chegada-hint">Clique no cabeçalho da coluna pra ordenar. Todas as origens aparecem aqui, mesmo com 0 pacotes.</p>
+          </div>
+        </div>
+        <div class="empty-hint" id="chegadaEmptyHint">Envie a base estrutura (.xlsx) para ver os carros por origem.</div>
+      </div>
+
+      <div class="actions-row" style="margin-top:16px;">
+        <button class="export-btn" id="btnExportChegada" disabled>
+          <span class="export-icon">📋</span> Copiar / Compartilhar
+        </button>
+        <span class="export-hint" id="chegadaExportHint">envie a base estrutura para liberar</span>
+      </div>
+    </div>
+  </div><!-- /viewChegada -->
+
+
+
+    </div><!-- /app-main -->
+  </div><!-- /app-layout -->
+
+  <div class="error-box" id="errorBox"></div>
+
+<script>
+  // ---------- clock ----------
+  function tickClock(){
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('clockTime').textContent = hh+':'+mm;
+  }
+  tickClock();
+  setInterval(tickClock, 30000);
+
+  // ---------- state ----------
+  let base1Data = null; // { statusMap: Map(id->status), totalGeral: number }
+  let base2Rows = null; // [{id, loc}]
+  let excludedOrigins = new Set(); // origins hidden from the "Distribuição por Origem" chart
+  let manualTotalGeral = null; // override manual do "Total Geral" (null = usar valor automático da base)
+
+  function getEffectiveTotalGeral(){
+    if(manualTotalGeral !== null && manualTotalGeral !== undefined && !isNaN(manualTotalGeral)){
+      return manualTotalGeral;
+    }
+    return base1Data ? base1Data.totalGeral : 0;
+  }
+
+  // ---------- persistência (banco de dados Supabase) ----------
+  // Os arquivos originais (base estrutura e base faltantes) são salvos numa
+  // tabela do Supabase. Ao subir um arquivo novo, o registro anterior é
+  // SUBSTITUÍDO (upsert pela chave 'base1'/'base2'). Qualquer PC que abrir
+  // este arquivo .html carrega os dados mais recentes automaticamente.
+  const SUPABASE_URL = 'https://cnpcsovjomonctbggbac.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNucGNzb3Zqb21vbmN0YmdnYmFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NjE4NzUsImV4cCI6MjEwMjAzNzg3NX0.lpumXh7HmzmhUcBqNSAhaR3S7Cd6TFg5sivWybjsra4';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const SUPABASE_TABLE = 'painel_dados';
+  const STORAGE_BUCKET = 'painel-arquivos';
+  const BASE1_STORAGE_PATH = 'base1.xlsx';
+
+  function base64ToArrayBuffer(b64){
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  async function saveBase1ToStorage(arrayBuffer, filename){
+    try{
+      // Arquivo binário (XLSX) vai pro Storage do Supabase — evita timeout que
+      // acontecia tentando gravar o arquivo inteiro em base64 numa coluna de texto.
+      const { error: uploadError } = await supabaseClient
+        .storage
+        .from(STORAGE_BUCKET)
+        .upload(BASE1_STORAGE_PATH, arrayBuffer, {
+          upsert: true,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+      if(uploadError) throw uploadError;
+
+      // Só o nome do arquivo e a data ficam na tabela (registro pequeno, rápido)
+      const { error: metaError } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .upsert({
+          chave: 'base1',
+          filename,
+          conteudo: null,
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'chave' });
+      if(metaError) throw metaError;
+
+      dropBase1._setStatus(filename + ' · ' + fmt(base1Data.totalGeral) + ' pacotes · ' + (base1Data.formatDetected || '') + cycleTag(base1Data) + ' (salvo no banco ✓)', true);
+    }catch(err){
+      console.error('Falha ao salvar base estrutura no Supabase:', err);
+      dropBase1._setStatus(filename + ' · carregado, mas NÃO salvo no banco', false);
+      showError('BASE ESTRUTURA não foi salva no banco de dados: ' + (err.message || JSON.stringify(err)), 'save');
+    }
+  }
+  async function saveBase2ToStorage(text, filename){
+    try{
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .upsert({
+          chave: 'base2',
+          filename,
+          conteudo: text,
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'chave' });
+      if(error) throw error;
+      dropBase2._setStatus(filename + ' · ' + fmt(base2Rows.length) + ' linhas (salvo no banco ✓)', true);
+    }catch(err){
+      console.error('Falha ao salvar base faltantes no Supabase:', err);
+      dropBase2._setStatus(filename + ' · carregado, mas NÃO salvo no banco', false);
+      showError('BASE FALTANTES não foi salva no banco de dados: ' + (err.message || JSON.stringify(err)), 'save');
+    }
+  }
+  async function saveManualTotalToStorage(value){
+    try{
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .upsert({
+          chave: 'totalGeralManual',
+          filename: null,
+          conteudo: String(value),
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'chave' });
+      if(error) throw error;
+    }catch(err){
+      showError('Total geral manual não foi salvo no banco de dados: ' + (err.message || JSON.stringify(err)), 'save');
+    }
+  }
+
+  async function clearManualTotalFromStorage(){
+    try{
+      // Usa upsert (mesma operação já usada para salvar) em vez de delete, pois
+      // a policy de segurança do Supabase pode permitir insert/update mas não
+      // delete para a chave anon — assim a limpeza não corre risco de ser
+      // silenciosamente ignorada pelo banco.
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .upsert({
+          chave: 'totalGeralManual',
+          filename: null,
+          conteudo: '',
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'chave' });
+      if(error) throw error;
+    }catch(err){
+      showError('Não consegui remover o total geral manual do banco de dados: ' + (err.message || JSON.stringify(err)), 'save');
+    }
+  }
+
+  function updateTotalManualUI(){
+    const tag = document.getElementById('totalGeralModeTag');
+    const isManual = manualTotalGeral !== null && manualTotalGeral !== undefined && !isNaN(manualTotalGeral);
+    tag.style.display = isManual ? 'inline-block' : 'none';
+  }
+
+  async function loadSavedData(){
+    // base1 (xlsx) — arquivo no Storage + nome/data na tabela
+    try{
+      const { data: metaRows } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select('filename')
+        .eq('chave', 'base1')
+        .limit(1);
+      const meta = metaRows && metaRows[0];
+
+      const { data: fileBlob, error: downloadError } = await supabaseClient
+        .storage
+        .from(STORAGE_BUCKET)
+        .download(BASE1_STORAGE_PATH);
+      if(downloadError) throw downloadError;
+
+      const buf = await fileBlob.arrayBuffer();
+      base1Data = parseBase1(buf, meta && meta.filename);
+      dropBase1._setStatus((meta && meta.filename || 'base salva') + ' · ' + fmt(base1Data.totalGeral) + ' pacotes · ' + (base1Data.formatDetected || '') + cycleTag(base1Data) + ' (salvo)', true);
+      updateCicloBadge();
+      renderChegadaTab();
+    }catch(err){
+      // ainda não há base estrutura salva — segue sem erro visível
+    }
+
+    // base2 (csv) — continua direto na tabela (arquivo pequeno)
+    try{
+      const { data: row2 } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select('filename, conteudo')
+        .eq('chave', 'base2')
+        .limit(1)
+        .maybeSingle();
+      if(row2 && row2.conteudo){
+        base2Rows = parseBase2(row2.conteudo);
+        dropBase2._setStatus((row2.filename||'base salva') + ' · ' + fmt(base2Rows.length) + ' linhas (salvo)', true);
+      }
+    }catch(err){
+      // ainda não há base faltantes salva — segue sem erro visível
+    }
+
+    // total geral manual (override) — se existir, sobrescreve o valor calculado da base
+    try{
+      const { data: rowManual } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select('conteudo')
+        .eq('chave', 'totalGeralManual')
+        .limit(1)
+        .maybeSingle();
+      if(rowManual && rowManual.conteudo !== null && rowManual.conteudo !== ''){
+        const n = Number(rowManual.conteudo);
+        manualTotalGeral = isNaN(n) ? null : n;
+      } else {
+        manualTotalGeral = null;
+      }
+    }catch(err){
+      // sem valor manual salvo — segue com o automático
+    }
+    updateTotalManualUI();
+
+    if(base1Data || base2Rows) compute();
+  }
+
+  function getAllOrigins(){
+    if(!base1Data) return [];
+    const set = new Set();
+    base1Data.records.forEach(rec => { if(rec.facility) set.add(rec.facility); });
+    return Array.from(set);
+  }
+
+  function renderChegadaTab(){
+    const emptyHint = document.getElementById('chegadaEmptyHint');
+    const btnExportChegada = document.getElementById('btnExportChegada');
+    const origins = getAllOrigins();
+
+    if(!base1Data || origins.length === 0){
+      document.getElementById('chegadaOrigemWrap').style.display = 'none';
+      btnExportChegada.disabled = true;
+
+      if(!base1Data){
+        emptyHint.textContent = 'Envie a base estrutura (.xlsx) para ver os carros por origem.';
+      } else if(!base1Data.facilityColumnFound){
+        emptyHint.textContent = 'Não encontrei a coluna facility_origin na aba PLANIFICATION.';
+      } else {
+        emptyHint.textContent = 'Não encontrei nenhuma origem preenchida na aba PLANIFICATION.';
+      }
+      emptyHint.style.display = 'block';
+      return;
+    }
+    emptyHint.style.display = 'none';
+    btnExportChegada.disabled = false;
+
+    if(!base2Rows){
+      document.getElementById('chegadaOrigemWrap').style.display = 'none';
+      emptyHint.textContent = 'Envie também a base faltantes (.csv) — o On Way vem de lá.';
+      emptyHint.style.display = 'block';
+      btnExportChegada.disabled = true;
+      return;
+    }
+
+    renderChegadaOrigemPanel();
+  }
+
+  // ---------- On Time / Early / Delay por Origem (aba Total por Origem) ----------
+  let chegadaOrigemSort = { key: 'total', dir: 'desc' };
+
+  function computeChegadaOrigemData(){
+    // Mesma base do gráfico "On Way por Origem" do Dashboard: só os pacotes que
+    // contam pro card On Way, classificados por prazo de entrega (On Time/Early/Delay).
+    const today = new Date();
+    const onWayData = computeOnWayByOrigin(); // [{origin, OnTime, Early, Delay, total}]
+    const map = new Map(onWayData.map(c => [c.origin, c]));
+
+    // garante que todas as origens apareçam, mesmo com 0
+    getAllOrigins().forEach(origin => {
+      if(!map.has(origin)) map.set(origin, {origin, OnTime:0, Early:0, Delay:0, total:0});
+    });
+
+    return Array.from(map.values()).map(c => {
+      const arr = base1Data.arrivalByOrigin && base1Data.arrivalByOrigin.get(c.origin);
+      return {
+        origin: c.origin, onTime: c.OnTime, early: c.Early, delay: c.Delay, total: c.total,
+        arrivalTimeStr: arr ? arr.timeStr : '—',
+        arrivalDateStr: arr ? (arr.dateStr || today.toLocaleDateString('pt-BR')) : '—'
+      };
+    });
+  }
+
+  function sortChegadaOrigemData(data){
+    const { key, dir } = chegadaOrigemSort;
+    const mult = dir === 'asc' ? 1 : -1;
+    return [...data].sort((a,b) => {
+      if(key === 'origin') return a.origin.localeCompare(b.origin) * mult;
+      return (a[key] - b[key]) * mult;
+    });
+  }
+
+  function renderChegadaOrigemTable(data){
+    const sorted = sortChegadaOrigemData(data);
+    const tbody = document.getElementById('tblChegadaOrigem');
+    document.getElementById('chegadaOrigemBadge').textContent = fmt(sorted.length);
+    tbody.innerHTML = sorted.map(d =>
+      '<tr><td>'+d.arrivalDateStr+'</td><td>'+d.arrivalTimeStr+'</td><td>'+d.origin+'</td><td class="num">'+fmt(d.onTime)+'</td><td class="num">'+fmt(d.early)+'</td><td class="num">'+fmt(d.delay)+'</td><td class="num col-total">'+fmt(d.total)+'</td></tr>'
+    ).join('');
+
+    const totalOnTime = sorted.reduce((s,d)=>s+d.onTime, 0);
+    const totalEarly = sorted.reduce((s,d)=>s+d.early, 0);
+    const totalDelay = sorted.reduce((s,d)=>s+d.delay, 0);
+    const totalTotal = sorted.reduce((s,d)=>s+d.total, 0);
+    document.getElementById('chegadaOrigemTotalOnTime').innerHTML = '<b>'+fmt(totalOnTime)+'</b>';
+    document.getElementById('chegadaOrigemTotalEarly').innerHTML = '<b>'+fmt(totalEarly)+'</b>';
+    document.getElementById('chegadaOrigemTotalDelay').innerHTML = '<b>'+fmt(totalDelay)+'</b>';
+    document.getElementById('chegadaOrigemTotalTotal').innerHTML = '<b>'+fmt(totalTotal)+'</b>';
+    document.getElementById('chegadaGrandTotalBadge').textContent = 'On Time + Early + Delay: ' + fmt(totalTotal);
+
+    document.querySelectorAll('#tblChegadaOrigemTable th.sortable').forEach(th => {
+      const key = th.dataset.sort;
+      const arrowSpan = th.querySelector('.sort-arrow');
+      if(arrowSpan) arrowSpan.remove();
+      if(key === chegadaOrigemSort.key){
+        const arrow = document.createElement('span');
+        arrow.className = 'sort-arrow';
+        arrow.textContent = chegadaOrigemSort.dir === 'asc' ? '▲' : '▼';
+        th.appendChild(arrow);
+      }
+    });
+  }
+
+  function renderChegadaOrigemPanel(){
+    const wrap = document.getElementById('chegadaOrigemWrap');
+    if(!base1Data || !base2Rows){
+      wrap.style.display = 'none';
+      return;
+    }
+    const data = computeChegadaOrigemData();
+    if(data.length === 0){
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'grid';
+    renderChegadaOrigemTable(data);
+  }
+
+  document.querySelectorAll('#tblChegadaOrigemTable th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if(chegadaOrigemSort.key === key){
+        chegadaOrigemSort.dir = chegadaOrigemSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        chegadaOrigemSort = { key, dir: key === 'origin' ? 'asc' : 'desc' };
+      }
+      if(base1Data && base2Rows) renderChegadaOrigemTable(computeChegadaOrigemData());
+    });
+  });
+
+
+
+  const errorBox = document.getElementById('errorBox');
+  function showError(msg, kind){
+    errorBox.style.display = 'block';
+    errorBox.textContent = msg;
+    errorBox.dataset.kind = kind || 'parse';
+  }
+  function clearError(){
+    errorBox.style.display = 'none';
+    errorBox.textContent = '';
+    errorBox.dataset.kind = '';
+  }
+
+  function normId(v){
+    if(v === null || v === undefined) return null;
+    let s = String(v).trim();
+    // strip trailing .0 from numeric-looking ids
+    if(/^\d+\.0+$/.test(s)) s = s.split('.')[0];
+    return s;
+  }
+
+  function findHeaderIndex(headerRow, candidates){
+    const norm = headerRow.map(h => (h===undefined||h===null) ? '' : String(h).trim().toLowerCase());
+    for(const cand of candidates){
+      const idx = norm.indexOf(cand.toLowerCase());
+      if(idx !== -1) return idx;
+    }
+    return -1;
+  }
+
+  function findSheetName(workbook, candidates){
+    const names = workbook.SheetNames;
+    const norm = n => n.trim().toLowerCase();
+
+    // 1) match exato (ex: aba chamada só "BASE")
+    for(const cand of candidates){
+      const c = cand.toLowerCase();
+      const hit = names.find(n => norm(n) === c);
+      if(hit) return hit;
+    }
+    // 2) match por "palavra" dentro do nome da aba (ex: "BASE PM1", "PLANIFICATION SRJ1",
+    //    onde o sufixo muda conforme a operação/turno)
+    for(const cand of candidates){
+      const c = cand.toLowerCase();
+      const hit = names.find(n => norm(n).split(/[\s_\-]+/).includes(c));
+      if(hit) return hit;
+    }
+    // 3) fallback: aba cujo nome começa com o candidato (ex: "BASEPM1" sem espaço)
+    for(const cand of candidates){
+      const c = cand.toLowerCase();
+      const hit = names.find(n => norm(n).startsWith(c));
+      if(hit) return hit;
+    }
+    return null;
+  }
+
+  // ---------- reconhecimento do ciclo (AM/PM/SD/CHP/Outro) ----------
+  // Procura, nos nomes das abas e no nome do arquivo, um token do tipo "PM1",
+  // "AM1", "SD1", "CHP1" (ou só "PM"/"AM"/"SD"/"CHP" sem número) e devolve o
+  // ciclo completo (ex: "PM1") junto com a família (PM/AM/SD/CHP/Outro).
+  function detectCycleInfo(candidates){
+    const text = candidates.filter(Boolean).join(' ');
+    const m = text.match(/\b(AM|PM|SD|CHP)\s*-?\s*(\d+)?\b/i);
+    if(m){
+      const family = m[1].toUpperCase();
+      const num = m[2] || '';
+      return { cycle: family + num, cycleFamily: family };
+    }
+    return { cycle: '', cycleFamily: '' };
+  }
+
+  // texto " · Ciclo PM1" pra anexar nas mensagens de status, ou '' se não detectou
+  function cycleTag(data){
+    return (data && data.cycle) ? ' · Ciclo ' + data.cycle : '';
+  }
+
+  // atualiza o badge de ciclo fixado no topo do painel
+  function updateCicloBadge(){
+    const badge = document.getElementById('cicloBadge');
+    if(!badge) return;
+    if(base1Data && base1Data.cycle){
+      badge.textContent = 'Ciclo ' + base1Data.cycle;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  // ---------- parse BASE1 (xlsx) ----------
+  // ---------- ponto de entrada: detecta o formato do arquivo e delega ----------
+  function parseBase1(arrayBuffer, fileName){
+    const wb = XLSX.read(arrayBuffer, {type:'array', cellDates:true});
+
+    const baseSheetName = findSheetName(wb, ['BASE']);
+    const planSheetName = findSheetName(wb, ['PLANIFICATION']);
+    const cycleInfo = detectCycleInfo([planSheetName, baseSheetName, fileName, ...wb.SheetNames]);
+
+    // Formato 1: abas "BASE" + "PLANIFICATION" (unit_id / status / facility_origin ...)
+    if(baseSheetName && planSheetName){
+      return Object.assign(parseFormat1(wb, baseSheetName, planSheetName), cycleInfo);
+    }
+
+    // Formato 2: aba única "Planification" com colunas RTG_UNIT_EXTERNAL_ID / STATUS_ATUAL / ...
+    if(planSheetName){
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[planSheetName], {header:1, raw:true, defval:null});
+      const header = rows[0] || [];
+      const looksLikeFormat2 =
+        findHeaderIndex(header, ['rtg_unit_external_id']) !== -1 &&
+        findHeaderIndex(header, ['status_atual']) !== -1;
+      if(looksLikeFormat2){
+        return Object.assign(parseFormat2(wb, planSheetName, rows, header), cycleInfo);
+      }
+    }
+
+    throw new Error('Não reconheci o formato desta planilha. Formatos aceitos: (1) abas "BASE" + "PLANIFICATION"; (2) aba "Planification" com colunas RTG_UNIT_EXTERNAL_ID / STATUS_ATUAL.');
+  }
+
+  // ---------- Formato 1: abas BASE + PLANIFICATION ----------
+  function parseFormat1(wb, baseSheetName, planSheetName){
+    // Total geral = data rows in BASE sheet
+    const baseRows = XLSX.utils.sheet_to_json(wb.Sheets[baseSheetName], {header:1, raw:true, defval:null});
+    const totalGeral = Math.max(0, baseRows.length - 1); // minus header
+
+    // try to also capture package IDs from BASE sheet (used to list "Faltante" IDs, not just the count)
+    let baseIds = null;
+    if(baseRows.length > 0){
+      const baseHeader = baseRows[0];
+      const baseIdIdx = findHeaderIndex(baseHeader, ['rtg_unit_external_id','unit_id','id do pacote','id_pacote','pacote_id','id']);
+      if(baseIdIdx !== -1){
+        baseIds = new Set();
+        for(let i=1;i<baseRows.length;i++){
+          const row = baseRows[i];
+          if(!row) continue;
+          const id = normId(row[baseIdIdx]);
+          if(id !== null && id !== '') baseIds.add(id);
+        }
+      }
+    }
+
+    // records map from PLANIFICATION: id -> {status, facility, promiseEnd, rota}
+    const planRows = XLSX.utils.sheet_to_json(wb.Sheets[planSheetName], {header:1, raw:true, defval:null});
+    if(planRows.length < 1) throw new Error('Aba PLANIFICATION está vazia.');
+    const header = planRows[0];
+    const idIdx = findHeaderIndex(header, ['unit_id']);
+    const statusIdx = findHeaderIndex(header, ['status']);
+    const facilityIdx = findHeaderIndex(header, ['facility_origin']);
+    const promiseEndIdx = findHeaderIndex(header, ['promise_date_end']);
+    const rotaIdx = findHeaderIndex(header, ['n.º rota', 'numero rota', 'n° rota', 'rota', 'route_id', 'route']);
+    const estArrivalIdx = findHeaderIndex(header, ['estimated_arrival', 'estimated arrival', 'horário estimado chegada', 'horario estimado chegada', 'eta']);
+    if(idIdx === -1) throw new Error('Não encontrei a coluna "unit_id" na aba PLANIFICATION.');
+    if(statusIdx === -1) throw new Error('Não encontrei a coluna "status" na aba PLANIFICATION.');
+
+    function parseTimeValue(v){
+      if(v === null || v === undefined || v === '') return null;
+      if(v instanceof Date && !isNaN(v)){
+        // células só de "hora" no Excel viram Date com data-base de 1899/1900 —
+        // isso não é uma data real, então nesse caso não retornamos dateStr.
+        const hasRealDate = v.getFullYear() >= 1970;
+        const dateStr = hasRealDate
+          ? String(v.getDate()).padStart(2,'0') + '/' + String(v.getMonth()+1).padStart(2,'0') + '/' + v.getFullYear()
+          : null;
+        return { h: v.getHours(), m: v.getMinutes(), dateStr };
+      }
+      if(typeof v === 'number'){
+        // Excel serial: dias inteiros desde 1899-12-30 (parte inteira) + fração do dia (hora)
+        const excelEpochMs = Date.UTC(1899, 11, 30);
+        const wholeDays = Math.floor(v);
+        const dateObj = new Date(excelEpochMs + Math.round(v * 86400000));
+        const h = dateObj.getUTCHours();
+        const m = dateObj.getUTCMinutes();
+        const dateStr = wholeDays > 0
+          ? String(dateObj.getUTCDate()).padStart(2,'0') + '/' + String(dateObj.getUTCMonth()+1).padStart(2,'0') + '/' + dateObj.getUTCFullYear()
+          : null;
+        return { h, m, dateStr };
+      }
+      const s = String(v).trim();
+      const dt = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+      if(dt){
+        const [, dd, mm, yyyy, hh, min] = dt;
+        return { h: Number(hh), m: Number(min), dateStr: dd.padStart(2,'0') + '/' + mm.padStart(2,'0') + '/' + yyyy };
+      }
+      const m = s.match(/(\d{1,2}):(\d{2})/);
+      if(m) return { h: Number(m[1]), m: Number(m[2]), dateStr: null };
+      return null;
+    }
+
+    const arrivalByOrigin = new Map(); // facility_origin -> { h, m, timeStr, dateStr }
+
+    const records = new Map();
+    for(let i=1;i<planRows.length;i++){
+      const row = planRows[i];
+      if(!row) continue;
+      const id = normId(row[idIdx]);
+      if(id === null) continue;
+      const status = row[statusIdx] === null || row[statusIdx] === undefined ? '' : String(row[statusIdx]).trim();
+      const facility = (facilityIdx === -1 || row[facilityIdx] === null || row[facilityIdx] === undefined) ? null : String(row[facilityIdx]).trim();
+      let promiseEnd = null;
+      if(promiseEndIdx !== -1 && row[promiseEndIdx]){
+        const v = row[promiseEndIdx];
+        promiseEnd = (v instanceof Date) ? v : new Date(v);
+      }
+      const rota = (rotaIdx === -1 || row[rotaIdx] === null || row[rotaIdx] === undefined) ? '' : String(row[rotaIdx]).trim();
+      records.set(id, { status, facility, promiseEnd, rota });
+
+      if(facility && estArrivalIdx !== -1 && !arrivalByOrigin.has(facility)){
+        const t = parseTimeValue(row[estArrivalIdx]);
+        if(t){
+          const timeStr = String(t.h).padStart(2,'0') + ':' + String(t.m).padStart(2,'0');
+          arrivalByOrigin.set(facility, { h: t.h, m: t.m, timeStr, dateStr: t.dateStr });
+        }
+      }
+    }
+
+    // statusMap kept for backward compatibility with existing card logic
+    const statusMap = new Map();
+    records.forEach((rec, id) => statusMap.set(id, rec.status));
+
+    return { statusMap, records, totalGeral, baseIds, arrivalByOrigin, estArrivalColumnFound: estArrivalIdx !== -1, facilityColumnFound: facilityIdx !== -1, planHeaderRaw: header, formatDetected: 'Formato 1 (BASE + PLANIFICATION)' };
+  }
+
+  // ---------- Formato 2: aba única "Planification" (RTG_UNIT_EXTERNAL_ID / STATUS_ATUAL / SUBSTATUS_ATUAL / ORIGEM / OTIMIZADO ...) ----------
+  function parseFormat2(wb, planSheetName, rowsParam, headerParam){
+    const rows = rowsParam || XLSX.utils.sheet_to_json(wb.Sheets[planSheetName], {header:1, raw:true, defval:null});
+    if(rows.length < 1) throw new Error('Aba "Planification" está vazia.');
+    const header = headerParam || rows[0];
+
+    const idIdx = findHeaderIndex(header, ['rtg_unit_external_id']);
+    const statusIdx = findHeaderIndex(header, ['status_atual']);
+    const substatusIdx = findHeaderIndex(header, ['substatus_atual']);
+    const facilityIdx = findHeaderIndex(header, ['origem']);
+    const rotaIdx = findHeaderIndex(header, ['otimizado']);
+    const dataSaidaIdx = findHeaderIndex(header, ['data_saida']);
+    if(idIdx === -1) throw new Error('Não encontrei a coluna "RTG_UNIT_EXTERNAL_ID" na aba Planification.');
+    if(statusIdx === -1) throw new Error('Não encontrei a coluna "STATUS_ATUAL" na aba Planification.');
+
+    // status combinado no mesmo padrão do Formato 1: "status|substatus" (ex: "at_station|sorting")
+    const records = new Map();
+    const baseIds = new Set();
+    for(let i=1;i<rows.length;i++){
+      const row = rows[i];
+      if(!row) continue;
+      const id = normId(row[idIdx]);
+      if(id === null || id === '') continue;
+
+      const statusMain = (row[statusIdx] === null || row[statusIdx] === undefined) ? '' : String(row[statusIdx]).trim();
+      const substatus = (substatusIdx === -1 || row[substatusIdx] === null || row[substatusIdx] === undefined) ? '' : String(row[substatusIdx]).trim();
+      const status = substatus ? (statusMain + '|' + substatus) : statusMain;
+
+      const facility = (facilityIdx === -1 || row[facilityIdx] === null || row[facilityIdx] === undefined) ? null : String(row[facilityIdx]).trim();
+      const rota = (rotaIdx === -1 || row[rotaIdx] === null || row[rotaIdx] === undefined) ? '' : String(row[rotaIdx]).trim();
+
+      // No Formato 2, DATA_SAIDA faz o papel de "promise_date_end" (usado no On Time/Early/Delay).
+      // Horário estimado de chegada (ORH) segue ignorado por enquanto.
+      let promiseEnd = null;
+      if(dataSaidaIdx !== -1 && row[dataSaidaIdx] !== null && row[dataSaidaIdx] !== undefined && row[dataSaidaIdx] !== ''){
+        const v = row[dataSaidaIdx];
+        const d = (v instanceof Date) ? v : new Date(v);
+        if(!isNaN(d.getTime())) promiseEnd = d;
+      }
+
+      records.set(id, { status, facility, promiseEnd, rota });
+      baseIds.add(id);
+    }
+
+    const statusMap = new Map();
+    records.forEach((rec, id) => statusMap.set(id, rec.status));
+
+    const totalGeral = records.size;
+
+    return {
+      statusMap, records, totalGeral, baseIds,
+      arrivalByOrigin: new Map(),
+      estArrivalColumnFound: false,
+      facilityColumnFound: facilityIdx !== -1,
+      planHeaderRaw: header,
+      formatDetected: 'Formato 2 (Planification)'
+    };
+  }
+
+  // ---------- parse BASE2 (csv) ----------
+  function parseCSVText(text){
+    // simple robust CSV parser (handles quoted fields with commas)
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for(let i=0;i<text.length;i++){
+      const c = text[i];
+      if(inQuotes){
+        if(c === '"'){
+          if(text[i+1] === '"'){ field+='"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else {
+        if(c === '"') inQuotes = true;
+        else if(c === ','){ row.push(field); field=''; }
+        else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+        else if(c === '\r'){ /* skip */ }
+        else field += c;
+      }
+    }
+    if(field.length || row.length){ row.push(field); rows.push(row); }
+    return rows.filter(r => r.length>1 || (r.length===1 && r[0]!==''));
+  }
+
+  function parseInboundDate(raw){
+    if(!raw) return null;
+    // format: DD/MM/YYYY HH:mm
+    const m = String(raw).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+    if(!m) return null;
+    const [, dd, mm, yyyy, hh, min] = m;
+    return new Date(Number(yyyy), Number(mm)-1, Number(dd), Number(hh), Number(min));
+  }
+
+  function parseBase2(text){
+    const rows = parseCSVText(text);
+    if(rows.length < 1) throw new Error('CSV vazio.');
+    const header = rows[0];
+    const idIdx = findHeaderIndex(header, ['id do pacote']);
+    const locIdx = findHeaderIndex(header, ['localização do pacote', 'localizacao do pacote']);
+    const rotaIdx = findHeaderIndex(header, ['n.º rota', 'numero rota', 'n° rota', 'rota']);
+    const inboundIdx = findHeaderIndex(header, ['data de inbound']);
+    // colunas extras (opcionais) — se existirem no CSV, são capturadas pra
+    // enriquecer a planilha de extração de IDs; se não existirem, ficam em branco
+    const paradaIdx = findHeaderIndex(header, ['parada']);
+    const pontoIdx = findHeaderIndex(header, ['ponto']);
+    const alturaIdx = findHeaderIndex(header, ['altura']);
+    const larguraIdx = findHeaderIndex(header, ['largura']);
+    const comprimentoIdx = findHeaderIndex(header, ['comprimento']);
+    const detalheIdx = findHeaderIndex(header, ['detalhe do pacote', 'detalhe pacote', 'detalhes do pacote']);
+    if(idIdx === -1) throw new Error('Não encontrei a coluna "ID do pacote" no CSV.');
+    if(locIdx === -1) throw new Error('Não encontrei a coluna "Localização do pacote" no CSV.');
+
+    const pick = (r, idx) => idx === -1 ? '' : String(r[idx] === null || r[idx] === undefined ? '' : r[idx]).trim();
+
+    const out = [];
+    for(let i=1;i<rows.length;i++){
+      const r = rows[i];
+      if(!r || r.length===0) continue;
+      const id = normId(r[idIdx]);
+      if(id === null || id === '') continue;
+      const loc = (r[locIdx]||'').trim();
+      const rota = pick(r, rotaIdx);
+      const inboundRaw = pick(r, inboundIdx);
+      const inboundDate = parseInboundDate(inboundRaw);
+      const parada = pick(r, paradaIdx);
+      const ponto = pick(r, pontoIdx);
+      const altura = pick(r, alturaIdx);
+      const largura = pick(r, larguraIdx);
+      const comprimento = pick(r, comprimentoIdx);
+      const detalhePacote = pick(r, detalheIdx);
+      out.push({id, loc, rota, inboundRaw, inboundDate, parada, ponto, altura, largura, comprimento, detalhePacote});
+    }
+    return out;
+  }
+
+  // ---------- compute cards ----------
+  function compute(){
+    if(!base1Data || !base2Rows) return;
+    if(errorBox.dataset.kind !== 'save') clearError();
+
+    populateOriginFilter();
+    recomputeAll();
+
+    document.getElementById('panelsWrap').style.display = 'grid';
+    document.getElementById('filterRow').style.display = 'flex';
+
+    const btn = document.getElementById('btnExport');
+    btn.disabled = false;
+    document.getElementById('btnExtractData').disabled = false;
+    document.getElementById('exportHint').textContent = 'imagem pronta pra compartilhar';
+
+    renderChegadaTab();
+  }
+
+  function getVisibleRows(){
+    const { records } = base1Data;
+    if(excludedOrigins.size === 0) return base2Rows;
+    return base2Rows.filter(r => {
+      const rec = records.get(r.id);
+      const facility = rec && rec.facility;
+      // rows with unknown origin are kept (we can't tell if they belong to an excluded origin)
+      return !facility || !excludedOrigins.has(facility);
+    });
+  }
+
+  let lastMetricIds = { d1: [], recebido: [], onWay: [], faltante: [], faltanteAvailable: false };
+
+  function recomputeAll(){
+    const { statusMap, baseIds } = base1Data;
+    const totalGeral = getEffectiveTotalGeral();
+    const D1_STATUSES = new Set(['at_station|sorting','at_station|buffered']);
+    const allRows = base2Rows;        // everything except On Way uses the full data
+    const visibleRows = getVisibleRows(); // filtered by excludedOrigins — only feeds On Way
+
+    let d1 = 0, recebido = 0;
+    const d1Ids = [], recebidoIds = [];
+    const recebidoRows = [];
+    for(const r of allRows){
+      const status = statusMap.get(r.id);
+      const isD1 = status !== undefined && D1_STATUSES.has(status);
+      if(isD1){
+        d1++;
+        d1Ids.push(r.id);
+      } else if(r.loc === 'Na estação'){
+        recebido++;
+        recebidoIds.push(r.id);
+        recebidoRows.push(r);
+      }
+    }
+
+    let onWay = 0;
+    const onWayIds = [];
+    for(const r of visibleRows){
+      const status = statusMap.get(r.id);
+      const isD1 = status !== undefined && D1_STATUSES.has(status);
+      if(!isD1 && r.loc === 'Caminho para a estação'){
+        onWay++;
+        onWayIds.push(r.id);
+      }
+    }
+
+    const noCarrinho = totalGeral - allRows.length;
+
+    // "Faltante" IDs = package IDs present in the BASE sheet but absent from the
+    // uploaded "faltantes" CSV (base2). Only possible if we could find an ID
+    // column in the BASE sheet — otherwise we only have the count.
+    let faltanteIds = [];
+    let faltanteAvailable = false;
+    if(baseIds){
+      const base2IdSet = new Set(allRows.map(r => r.id));
+      for(const id of baseIds){
+        if(!base2IdSet.has(id)) faltanteIds.push(id);
+      }
+      faltanteAvailable = true;
+    }
+    lastMetricIds = { d1: d1Ids, recebido: recebidoIds, onWay: onWayIds, faltante: faltanteIds, faltanteAvailable };
+
+    renderCards({totalGeral, d1, onWay, recebido, noCarrinho});
+    renderOrigemChart();
+    renderStatusChart({d1, onWay, recebido, noCarrinho, totalGeral});
+    renderEarlyTable(allRows);
+    renderNaoAtreladosTable(allRows);
+    renderIlhasTable(recebidoRows);
+  }
+
+  // ---------- Filtro de origens (afeta somente o card/valor "On Way") ----------
+  function populateOriginFilter(){
+    const { records } = base1Data;
+    const originsSet = new Set();
+    base2Rows.forEach(r => {
+      const rec = records.get(r.id);
+      if(rec && rec.facility) originsSet.add(rec.facility);
+    });
+    const allOrigins = Array.from(originsSet).sort();
+    const select = document.getElementById('originFilterSelect');
+    select.innerHTML = '<option value="">+ selecionar origem…</option>' +
+      allOrigins.map(o => `<option value="${o}">${o}</option>`).join('');
+    renderExcludedChips();
+  }
+
+  function renderExcludedChips(){
+    const container = document.getElementById('excludedChips');
+    container.innerHTML = Array.from(excludedOrigins).map(o => `
+      <span class="chip">${o}<button type="button" data-origin="${o}" title="Voltar ao painel">×</button></span>
+    `).join('');
+    container.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        excludedOrigins.delete(btn.dataset.origin);
+        renderExcludedChips();
+        recomputeAll();
+      });
+    });
+  }
+
+  document.getElementById('originFilterSelect').addEventListener('change', (e) => {
+    const val = e.target.value;
+    if(val){
+      excludedOrigins.add(val);
+      renderExcludedChips();
+      recomputeAll();
+    }
+    e.target.value = '';
+  });
+
+  // ---------- Distribuição por Origem (On Time / Early / Delay) ----------
+  function sameDay(a, b){
+    return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  }
+
+  function classifyOrigem(rows){
+    const { records } = base1Data;
+    const today = new Date();
+    const byOrigin = new Map(); // origin -> {OnTime, Early, Delay}
+
+    for(const r of rows){
+      const rec = records.get(r.id);
+      if(!rec || !rec.facility || !rec.promiseEnd) continue;
+      const d = rec.promiseEnd;
+      if(isNaN(d.getTime())) continue;
+
+      let cls;
+      if(sameDay(d, today)) cls = 'OnTime';
+      else if(d.getTime() < today.getTime()) cls = 'Delay';
+      else cls = 'Early';
+
+      if(!byOrigin.has(rec.facility)) byOrigin.set(rec.facility, {OnTime:0, Early:0, Delay:0});
+      byOrigin.get(rec.facility)[cls]++;
+    }
+
+    // sort origins by total desc
+    const arr = Array.from(byOrigin.entries()).map(([origin, c]) => ({
+      origin, ...c, total: c.OnTime + c.Early + c.Delay
+    }));
+    arr.sort((a,b) => b.total - a.total);
+    return arr;
+  }
+
+  function computeOnWayByOrigin(){
+    const { statusMap, records } = base1Data;
+    const D1_STATUSES = new Set(['at_station|sorting','at_station|buffered']);
+    const visibleRows = getVisibleRows(); // mesmo filtro de origem usado no card On Way
+    const today = new Date();
+    const byOrigin = new Map(); // origin -> {OnTime, Early, Delay}
+
+    for(const r of visibleRows){
+      const status = statusMap.get(r.id);
+      const isD1 = status !== undefined && D1_STATUSES.has(status);
+      if(isD1 || r.loc !== 'Caminho para a estação') continue; // só os pacotes que contam pro card On Way
+
+      const rec = records.get(r.id);
+      const origin = rec && rec.facility;
+      if(!origin) continue;
+      if(!byOrigin.has(origin)) byOrigin.set(origin, {OnTime:0, Early:0, Delay:0});
+
+      // classifica cada pacote On Way pelo prazo de entrega (promise_date_end)
+      if(rec.promiseEnd && !isNaN(rec.promiseEnd.getTime())){
+        const d = rec.promiseEnd;
+        let cls;
+        if(sameDay(d, today)) cls = 'OnTime';
+        else if(d.getTime() < today.getTime()) cls = 'Delay';
+        else cls = 'Early';
+        byOrigin.get(origin)[cls]++;
+      }
+    }
+
+    const arr = Array.from(byOrigin.entries()).map(([origin, c]) => ({
+      origin, ...c, total: c.OnTime + c.Early + c.Delay
+    }));
+    arr.sort((a,b) => b.total - a.total);
+    return arr;
+  }
+
+  let origemChartInstance = null;
+  function renderOrigemChart(){
+    if(typeof Chart === 'undefined'){
+      showError('A biblioteca de gráficos não carregou (sem conexão com a internet ao abrir o arquivo?). Verifique sua conexão e recarregue a página.');
+      return;
+    }
+    if(typeof ChartDataLabels !== 'undefined'){
+      Chart.register(ChartDataLabels);
+    }
+    const data = computeOnWayByOrigin();
+    const ctx = document.getElementById('chartOrigem').getContext('2d');
+
+    const labels = data.map(d => d.origin);
+    const onTime = data.map(d => d.OnTime);
+    const early = data.map(d => d.Early);
+    const delay = data.map(d => d.Delay);
+
+    if(origemChartInstance) origemChartInstance.destroy();
+
+    origemChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label:'On Time', data:onTime, backgroundColor:'#C97D0C', stack:'s', minBarLength:18, borderRadius:3, barPercentage:.82, categoryPercentage:.86 },
+          { label:'Early', data:early, backgroundColor:'#94A3B8', stack:'s', minBarLength:18, borderRadius:3, barPercentage:.82, categoryPercentage:.86 },
+          { label:'Delay', data:delay, backgroundColor:'#0B5FA5', stack:'s', minBarLength:18, borderRadius:3, barPercentage:.82, categoryPercentage:.86 },
+        ]
+      },
+      options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{
+          legend:{
+            position:'top',
+            align:'end',
+            labels:{ color:'#071C33', boxWidth:14, padding:16, font:{ family:"'JetBrains Mono', monospace", size:14, weight:'800' } }
+          },
+          tooltip:{
+            backgroundColor:'#0B2545',
+            borderColor:'#0B5FA5',
+            borderWidth:1,
+            titleColor:'#FFFFFF',
+            bodyColor:'#CBD8E8',
+            bodyFont:{ family:"'JetBrains Mono', monospace" },
+            titleFont:{ family:"'JetBrains Mono', monospace" }
+          },
+          datalabels:{
+            display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+            anchor:'center',
+            align:'center',
+            clamp:true,
+            color:'#FFFFFF',
+            backgroundColor:null,
+            borderWidth:0,
+            padding:{top:3,bottom:3,left:4,right:4},
+            font:{ family:"'JetBrains Mono', monospace", size:13, weight:'900' },
+            textStrokeColor:'rgba(0,0,0,.42)',
+            textStrokeWidth:2,
+            formatter: (value) => fmt(value)
+          }
+        },
+        scales:{
+          x:{
+            stacked:true,
+            ticks:{ color:'#0B2545', font:{ family:"'JetBrains Mono', monospace", size:13, weight:'800' } },
+            grid:{ color:'#D5DFEC' }
+          },
+          y:{
+            stacked:true,
+            ticks:{ color:'#0B2545', font:{ family:"'JetBrains Mono', monospace", size:13, weight:'800' } },
+            grid:{ color:'#D5DFEC' }
+          }
+        }
+      }
+    });
+  }
+
+  // ---------- Origens Com % Mais Early ----------
+  function renderEarlyTable(rows){
+    const data = classifyOrigem(rows); // already has {origin, OnTime, Early, Delay, total}
+    const ranked = data
+      .filter(d => d.total > 0)
+      .map(d => ({ ...d, pctEarly: d.Early / d.total }))
+      .sort((a,b) => b.pctEarly - a.pctEarly);
+
+    const tbody = document.getElementById('tblEarly');
+    tbody.innerHTML = ranked.map(d => `
+      <tr>
+        <td class="origin-cell">${d.origin}</td>
+        <td class="num c-early">${fmt(d.Early)}</td>
+        <td class="num c-ontime">${fmt(d.OnTime)}</td>
+        <td class="num c-delay">${fmt(d.Delay)}</td>
+        <td class="num">${fmt(d.total)}</td>
+        <td class="num c-pct">${(d.pctEarly*100).toFixed(1).replace('.', ',')}%</td>
+      </tr>
+    `).join('');
+  }
+  let statusChartInstance = null;
+  function renderStatusChart(d){
+    if(typeof Chart === 'undefined') return;
+    const ctx = document.getElementById('chartStatus').getContext('2d');
+    document.getElementById('statusTotalBadge').textContent = 'Total ' + fmt(d.totalGeral);
+
+    const labels = ['D-1', 'On Way', 'Recebido do dia', 'No Carrinho'];
+    const values = [d.d1, d.onWay, d.recebido, d.noCarrinho];
+    const colors = ['#C97D0C', '#C97D0C', '#C97D0C', '#C97D0C'];
+
+    if(statusChartInstance) statusChartInstance.destroy();
+
+    statusChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ data: values, backgroundColor: colors, borderRadius: 3, barThickness: 46, minBarLength: 34 }]
+      },
+      options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            backgroundColor:'#0B2545',
+            borderColor:'#0B5FA5',
+            borderWidth:1,
+            titleColor:'#FFFFFF',
+            bodyColor:'#CBD8E8',
+            bodyFont:{ family:"'JetBrains Mono', monospace" },
+            titleFont:{ family:"'JetBrains Mono', monospace" }
+          },
+          datalabels:{
+            // Mantém inclusive os valores pequenos dentro da barra para o print ficar legível.
+            display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+            anchor:'center',
+            align:'center',
+            offset:0,
+            clamp:true,
+            clip:false,
+            color:'#FFFFFF',
+            backgroundColor:null,
+            borderWidth:0,
+            padding:{top:2,bottom:2,left:4,right:4},
+            font:{ family:"'JetBrains Mono', monospace", size:14, weight:'900' },
+            textStrokeColor:'rgba(0,0,0,.38)',
+            textStrokeWidth:2,
+            formatter: (value) => fmt(value)
+          }
+        },
+        scales:{
+          x:{
+            ticks:{ color:'#0B2545', font:{ family:"'JetBrains Mono', monospace", size:13, weight:'800' } },
+            grid:{ display:false }
+          },
+          y:{
+            ticks:{ color:'#0B2545', font:{ family:"'JetBrains Mono', monospace", size:13, weight:'800' } },
+            grid:{ color:'#D5DFEC' },
+            grace:'8%'
+          }
+        }
+      }
+    });
+  }
+
+  function fmt(n){ return n.toLocaleString('pt-BR'); }
+  function pct(part, whole){
+    if(!whole) return '0%';
+    return ((part/whole)*100).toFixed(1).replace('.', ',') + '%';
+  }
+
+  function renderCards(d){
+    document.getElementById('emptyHint').style.display = 'none';
+
+    document.getElementById('valTotal').textContent = fmt(d.totalGeral);
+    document.getElementById('valD1').textContent = fmt(d.d1);
+    document.getElementById('valOnWay').textContent = fmt(d.onWay);
+    document.getElementById('valRecebido').textContent = fmt(d.recebido);
+    document.getElementById('valCarrinho').textContent = fmt(d.noCarrinho);
+    document.getElementById('valPendenteSorting').textContent = fmt(d.d1 + d.onWay + d.recebido);
+
+    document.getElementById('pctD1').textContent = pct(d.d1, d.totalGeral) + ' do total';
+    document.getElementById('pctOnWay').textContent = pct(d.onWay, d.totalGeral) + ' do total';
+    document.getElementById('pctRecebido').textContent = pct(d.recebido, d.totalGeral) + ' do total';
+    document.getElementById('pctCarrinho').textContent = pct(d.noCarrinho, d.totalGeral) + ' do total';
+
+    document.getElementById('barD1').style.width = Math.min(100, (d.d1/d.totalGeral)*100) + '%';
+    document.getElementById('barOnWay').style.width = Math.min(100, (d.onWay/d.totalGeral)*100) + '%';
+    document.getElementById('barRecebido').style.width = Math.min(100, (d.recebido/d.totalGeral)*100) + '%';
+    document.getElementById('barCarrinho').style.width = Math.min(100, (d.noCarrinho/d.totalGeral)*100) + '%';
+
+    tickClock();
+  }
+
+
+  // ---------- Pacotes Recebidos e não Atrelados ----------
+  function formatElapsed(ms){
+    if(ms < 0) ms = 0;
+    const totalMin = Math.floor(ms / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h + ':' + String(m).padStart(2,'0');
+  }
+
+  function renderNaoAtreladosTable(visibleRows){
+    const { records } = base1Data;
+    const now = new Date();
+
+    const list = visibleRows
+      .filter(r => r.inboundDate)
+      .map(r => {
+        const rec = records.get(r.id);
+        const origin = rec && rec.facility ? rec.facility : '—';
+        const elapsedMs = now.getTime() - r.inboundDate.getTime();
+        return { id: r.id, origin, rota: r.rota || '—', elapsedMs };
+      })
+      .sort((a,b) => b.elapsedMs - a.elapsedMs);
+
+    document.getElementById('naoAtreladosBadge').textContent = fmt(list.length) + ' pacotes';
+
+    const tbody = document.getElementById('tblNaoAtrelados');
+    tbody.innerHTML = list.map((r, i) => `
+      <tr>
+        <td class="num">${i+1}</td>
+        <td class="origin-cell">${r.id}</td>
+        <td>${r.origin}</td>
+        <td>${r.rota}</td>
+        <td class="num c-pct">${formatElapsed(r.elapsedMs)}</td>
+      </tr>
+    `).join('');
+  }
+
+  // ---------- Mapa de Calor (Ilhas) — baseado no Recebido do Dia ----------
+  function renderIlhasTable(recebidoRows){
+    const counts = new Map();
+    for(const r of recebidoRows){
+      if(!r.rota) continue;
+      const m = r.rota.match(/^([A-Za-z]+)/);
+      if(!m) continue;
+      const ilha = m[1].toUpperCase(); // prefixo de letras inteiro — separa V (ilha) de VA/VB/VC (volumoso)
+      counts.set(ilha, (counts.get(ilha) || 0) + 1);
+    }
+
+    const ranked = Array.from(counts.entries())
+      .map(([ilha, buffer]) => ({ ilha, buffer }))
+      .sort((a,b) => b.buffer - a.buffer);
+
+    document.getElementById('ilhasBadge').textContent = ranked.length + ' ilhas';
+
+    const half = Math.ceil(ranked.length / 2);
+    const colA = ranked.slice(0, half);
+    const colB = ranked.slice(half);
+
+    const rowsHtml = [];
+    for(let i=0;i<half;i++){
+      const a = colA[i];
+      const b = colB[i];
+      rowsHtml.push(`
+        <tr>
+          <td class="origin-cell">${a ? a.ilha : ''}</td>
+          <td class="num c-pct">${a ? fmt(a.buffer) : ''}</td>
+          <td class="origin-cell">${b ? b.ilha : ''}</td>
+          <td class="num c-pct">${b ? fmt(b.buffer) : ''}</td>
+        </tr>
+      `);
+    }
+    document.getElementById('tblIlhas').innerHTML = rowsHtml.join('');
+  }
+
+  // ---------- export / share ----------
+  async function captureElementBlob(elId){
+    const el = document.getElementById(elId);
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#EEF2F8',
+      scale: 6,
+      useCORS: true,
+      logging: false,
+      imageTimeout: 0
+    });
+    return await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+  }
+
+  async function exportImage(opts){
+    const { elId, btnId, hintId, fileNamePrefix, shareTitle } = opts;
+    const btn = document.getElementById(btnId);
+    const hint = document.getElementById(hintId);
+
+    if(typeof html2canvas === 'undefined'){
+      showError('A biblioteca de exportação não carregou (sem conexão com a internet?). Verifique sua conexão e recarregue a página.');
+      return;
+    }
+
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="export-icon">⏳</span> Gerando imagem...';
+
+    try{
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+      const fileName = fileNamePrefix + '_' + new Date().toISOString().slice(0,10) + '.png';
+
+      // Start generating the image right away, but keep it as a PROMISE (don't
+      // await it yet) — the browser only allows clipboard writes for a brief
+      // moment after the click, and html2canvas takes a bit to render. Passing
+      // the still-pending promise straight into ClipboardItem lets Chrome keep
+      // that permission alive while the image finishes rendering in the background.
+      const blobPromise = captureElementBlob(elId);
+
+      // Desktop: copy straight to the clipboard so it can be pasted (Ctrl+V)
+      // into WhatsApp Web directly — no file download involved.
+      if(!isMobile && navigator.clipboard && window.ClipboardItem){
+        try{
+          await navigator.clipboard.write([ new ClipboardItem({ 'image/png': blobPromise }) ]);
+          hint.textContent = 'copiado! cole (Ctrl+V) — envie como arquivo/documento p/ manter qualidade';
+          return;
+        }catch(clipErr){
+          console.warn('Clipboard falhou, tentando alternativa:', clipErr);
+          // falls through to the mobile-share / download logic below
+        }
+      }
+
+      const blob = await blobPromise;
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      // Mobile: native share sheet (WhatsApp shows up as a direct option there)
+      if(isMobile && navigator.canShare && navigator.canShare({ files:[file] })){
+        try{
+          await navigator.share({
+            files:[file],
+            title: shareTitle,
+            text: shareTitle + ' — ' + new Date().toLocaleString('pt-BR')
+          });
+          hint.textContent = 'compartilhado!';
+          return;
+        }catch(shareErr){
+          if(shareErr && shareErr.name === 'AbortError') return; // user cancelled
+          // otherwise fall through to clipboard/download below
+        }
+      }
+
+      // Mobile without share, or desktop with clipboard blocked: try clipboard
+      // once more with the resolved blob before giving up to download.
+      if(navigator.clipboard && window.ClipboardItem){
+        try{
+          await navigator.clipboard.write([ new ClipboardItem({ 'image/png': blob }) ]);
+          hint.textContent = 'copiado! cole (Ctrl+V) — envie como arquivo/documento p/ manter qualidade';
+          return;
+        }catch(clipErr){
+          // clipboard blocked — fall through to download
+        }
+      }
+
+      // Last resort: download the file
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      hint.textContent = 'baixado — envie como arquivo/documento no WhatsApp p/ manter qualidade';
+    }catch(err){
+      showError('Não consegui gerar a imagem: ' + err.message);
+    }finally{
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
+  }
+
+  document.getElementById('btnExport').addEventListener('click', ()=> exportImage({
+    elId: 'captureArea',
+    btnId: 'btnExport',
+    hintId: 'exportHint',
+    fileNamePrefix: 'painel_operacional',
+    shareTitle: 'Painel Operacional'
+  }));
+
+  document.getElementById('btnExportChegada').addEventListener('click', ()=> exportImage({
+    elId: 'chegadaCaptureArea',
+    btnId: 'btnExportChegada',
+    hintId: 'chegadaExportHint',
+    fileNamePrefix: 'chegada_carros',
+    shareTitle: 'Total por Origem'
+  }));
+
+
+  // ---------- extract just D-1 / Recebido do Dia / Faltante ----------
+  function buildExtractText(){
+    const d1 = document.getElementById('valD1').textContent.trim();
+    const d1Pct = document.getElementById('pctD1').textContent.trim();
+    const recebido = document.getElementById('valRecebido').textContent.trim();
+    const recebidoPct = document.getElementById('pctRecebido').textContent.trim();
+    const faltante = document.getElementById('valCarrinho').textContent.trim();
+    const faltantePct = document.getElementById('pctCarrinho').textContent.trim();
+    const now = new Date().toLocaleString('pt-BR');
+
+    return (
+      'Painel Operacional — ' + now + '\n' +
+      'D-1: ' + d1 + ' (' + d1Pct + ')\n' +
+      'Recebido do Dia: ' + recebido + ' (' + recebidoPct + ')\n' +
+      'Faltante: ' + faltante + ' (' + faltantePct + ')'
+    );
+  }
+
+  const EXTRACT_HEADER = [
+    'ID do pacote','N.º Rota','Parada','Ponto','Data de Inbound','Altura','Largura','Comprimento',
+    'Localização do pacote','Detalhe do pacote','Origem','Ordem de Chegada da Origem',
+    'Horário Estimado de Chegada','Classificação (On Time/Early/Delay)','Situação','Tipo',
+    'Status','Status2','Status3'
+  ];
+
+  // ordem de chegada de cada origem no dia, do horário mais cedo (1) pro mais tarde,
+  // usando o mesmo horário estimado de chegada (estimated_arrival) já extraído da base estrutura
+  function computeArrivalOrderMap(){
+    const order = new Map();
+    if(!base1Data || !base1Data.arrivalByOrigin) return order;
+    const arr = Array.from(base1Data.arrivalByOrigin.entries())
+      .map(([origin, t]) => ({ origin, mins: t.h*60 + t.m }));
+    arr.sort((a,b) => a.mins - b.mins);
+    arr.forEach((o, idx) => order.set(o.origin, idx+1));
+    return order;
+  }
+
+  // mesma classificação usada no gráfico "On Way por Origem" (classifyOrigem), mas
+  // aplicada a um único pacote a partir do promise_date_end dele
+  function classifyByPromiseEnd(promiseEnd){
+    if(!promiseEnd || isNaN(promiseEnd.getTime())) return '';
+    const today = new Date();
+    if(sameDay(promiseEnd, today)) return 'On Time';
+    if(promiseEnd.getTime() < today.getTime()) return 'Delay';
+    return 'Early';
+  }
+
+  // monta só as linhas de dados (sem título/cabeçalho — isso é responsabilidade
+  // de quem monta a planilha estilizada, logo abaixo)
+  function buildExtractDataRows(ids, tipoLabel, situacaoLabel){
+    const records = base1Data ? base1Data.records : new Map();
+    const arrivalByOrigin = (base1Data && base1Data.arrivalByOrigin) || new Map();
+    const arrivalOrder = computeArrivalOrderMap();
+    const base2ById = new Map(base2Rows.map(r => [r.id, r]));
+
+    return ids.map(id => {
+      const r2 = base2ById.get(id) || {};
+      const rec = records.get(id) || {};
+      const origin = rec.facility || '';
+      const arr = origin ? arrivalByOrigin.get(origin) : null;
+      return [
+        id,
+        r2.rota || '',
+        r2.parada || '',
+        r2.ponto || '',
+        r2.inboundRaw || '',
+        r2.altura || '',
+        r2.largura || '',
+        r2.comprimento || '',
+        r2.loc || '',
+        r2.detalhePacote || '',
+        origin,
+        origin ? (arrivalOrder.get(origin) || '') : '',
+        arr ? arr.timeStr : '',
+        classifyByPromiseEnd(rec.promiseEnd),
+        situacaoLabel,
+        tipoLabel,
+        '', '', ''
+      ];
+    });
+  }
+
+  // ---------- planilha estilizada (título + cabeçalho + linhas zebradas) ----------
+  // Usa ExcelJS em vez do SheetJS (xlsx.js) pra essa exportação porque a versão
+  // gratuita do SheetJS não grava cor/estilo de célula no .xlsx — só o ExcelJS
+  // consegue reproduzir a aparência.
+  //
+  // A cor das linhas é pintada célula por célula (RGB fixo), em vez de usar o
+  // "estilo de tabela" nomeado do Excel (ex: TableStyleLight9) — esse estilo
+  // nomeado depende de cada programa saber renderizar aquele nome, e na prática
+  // abriu diferente do esperado. Pintando a cor direto na célula, o resultado é
+  // sempre o mesmo em qualquer programa que abra o arquivo (Excel, Google
+  // Sheets, LibreOffice), do jeito que uma faixa de cor no Google Sheets funciona.
+  const EXTRACT_COL_WIDTHS = [16,12,9,8,18,9,9,12,22,20,12,14,14,20,12,14,10,10,10];
+  const EXTRACT_HEADER_FILL = 'FF0B5FA5';   // azul K+N
+  const EXTRACT_BAND_LIGHT = 'FFDCEAF7';    // azul bem clarinho
+  const EXTRACT_BAND_WHITE = 'FFFFFFFF';    // branco
+  const EXTRACT_BORDER_COLOR = 'FFD7E1EE';
+  const EXTRACT_THIN_BORDER = {
+    top:{style:'thin', color:{argb:EXTRACT_BORDER_COLOR}},
+    left:{style:'thin', color:{argb:EXTRACT_BORDER_COLOR}},
+    bottom:{style:'thin', color:{argb:EXTRACT_BORDER_COLOR}},
+    right:{style:'thin', color:{argb:EXTRACT_BORDER_COLOR}}
+  };
+
+  async function buildExtractWorkbookXlsx(){
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Kuehne+Nagel · Painel Operacional';
+    workbook.created = new Date();
+
+    const sheetsDef = [
+      { name: 'D-1', ids: lastMetricIds.d1, tipo: 'D-1', situacao: 'Recebido' },
+      { name: 'On Way', ids: lastMetricIds.onWay, tipo: 'On Way', situacao: 'A Caminho' },
+      { name: 'Recebido do dia', ids: lastMetricIds.recebido, tipo: 'Recebido do dia', situacao: 'Recebido' }
+    ];
+    const numCols = EXTRACT_HEADER.length;
+    const dataDateStr = new Date().toLocaleDateString('pt-BR');
+    const ciclo = (base1Data && base1Data.cycle) ? base1Data.cycle + ' · ' : '';
+
+    sheetsDef.forEach(({name, ids, tipo, situacao}) => {
+      const ws = workbook.addWorksheet(name, { views: [{ state:'frozen', ySplit:2 }] });
+      const dataRows = buildExtractDataRows(ids, tipo, situacao);
+
+      // linha 1 — faixa de título, mesclada, fundo azul-marinho (igual ao topo do painel)
+      ws.mergeCells(1,1,1,numCols);
+      const titleCell = ws.getCell(1,1);
+      titleCell.value = 'Detalhes da Extração — ' + ciclo + tipo + ' · ' + dataDateStr;
+      titleCell.font = { bold:true, color:{argb:'FFFFFFFF'}, size:13 };
+      titleCell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:'FF003269'} };
+      titleCell.alignment = { vertical:'middle', horizontal:'left' };
+      ws.getRow(1).height = 24;
+
+      // linha 2 — cabeçalho azul, negrito, branco
+      const headerRow = ws.getRow(2);
+      EXTRACT_HEADER.forEach((h, i) => {
+        const cell = headerRow.getCell(i+1);
+        cell.value = h;
+        cell.font = { bold:true, color:{argb:'FFFFFFFF'} };
+        cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:EXTRACT_HEADER_FILL} };
+        cell.alignment = { vertical:'middle', horizontal:'left', wrapText:true };
+        cell.border = EXTRACT_THIN_BORDER;
+      });
+      headerRow.height = 30;
+      headerRow.commit();
+
+      // linhas de dados — cor alternada linha a linha (zebrado), igual planilha
+      dataRows.forEach((rowArr, idx) => {
+        const row = ws.addRow(rowArr);
+        const bandColor = (idx % 2 === 0) ? EXTRACT_BAND_LIGHT : EXTRACT_BAND_WHITE;
+        row.eachCell({ includeEmpty:true }, (cell) => {
+          cell.font = { color:{argb:'FF0B2545'} };
+          cell.fill = { type:'pattern', pattern:'solid', fgColor:{argb:bandColor} };
+          cell.border = EXTRACT_THIN_BORDER;
+          cell.alignment = { vertical:'middle' };
+        });
+      });
+
+      // larguras de coluna
+      EXTRACT_COL_WIDTHS.forEach((w, i) => { ws.getColumn(i+1).width = w; });
+
+      // filtro (setas no cabeçalho) — autofiltro simples, sem depender de
+      // "Tabela" nomeada do Excel
+      if(dataRows.length > 0){
+        ws.autoFilter = { from: { row:2, column:1 }, to: { row: 2 + dataRows.length, column: numCols } };
+      }
+    });
+
+    return workbook;
+  }
+
+  async function extractData(){
+    const btn = document.getElementById('btnExtractData');
+    const hint = document.getElementById('exportHint');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="export-icon">⏳</span> Gerando...';
+
+    try{
+      const workbook = await buildExtractWorkbookXlsx();
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const cicloSlug = (base1Data && base1Data.cycle) ? base1Data.cycle.toLowerCase() + '_' : '';
+      const fileName = 'ids_' + cicloSlug + 'd1_onway_recebido_' + new Date().toISOString().slice(0,10) + '.xlsx';
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      btn.innerHTML = '<span class="export-icon">✅</span> Baixado!';
+      hint.textContent = 'arquivo .xlsx baixado com abas D-1 / On Way / Recebido do dia';
+      setTimeout(()=>{ btn.innerHTML = original; }, 1800);
+    }catch(err){
+      showError('Não consegui gerar o Excel: ' + (err.message || JSON.stringify(err)));
+      btn.innerHTML = original;
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('btnExtractData').addEventListener('click', extractData);
+
+  // ---------- tabs ----------
+  const tabBtnDashboard = document.getElementById('tabBtnDashboard');
+  const tabBtnChegada = document.getElementById('tabBtnChegada');
+  const viewDashboard = document.getElementById('viewDashboard');
+  const viewChegada = document.getElementById('viewChegada');
+
+  function switchTab(tab){
+    const isChegada = tab === 'chegada';
+    const isDashboard = !isChegada;
+    tabBtnChegada.classList.toggle('active', isChegada);
+    tabBtnDashboard.classList.toggle('active', isDashboard);
+    viewChegada.style.display = isChegada ? 'block' : 'none';
+    viewDashboard.style.display = isDashboard ? 'block' : 'none';
+    if(isChegada){
+      renderChegadaTab();
+    }
+  }
+  tabBtnDashboard.addEventListener('click', ()=> switchTab('dashboard'));
+  tabBtnChegada.addEventListener('click', ()=> switchTab('chegada'));
+
+  // ---------- file wiring ----------
+  function wireDrop(dropEl, inputEl, statusEl, onFile){
+    dropEl.addEventListener('click', (e)=>{ if(e.target !== inputEl) inputEl.click(); });
+    dropEl.addEventListener('dragover', (e)=>{ e.preventDefault(); dropEl.classList.add('is-dragover'); });
+    dropEl.addEventListener('dragleave', ()=> dropEl.classList.remove('is-dragover'));
+    dropEl.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      dropEl.classList.remove('is-dragover');
+      if(e.dataTransfer.files && e.dataTransfer.files[0]){
+        onFile(e.dataTransfer.files[0]);
+      }
+    });
+    inputEl.addEventListener('change', (e)=>{
+      if(e.target.files && e.target.files[0]) onFile(e.target.files[0]);
+    });
+
+    dropEl._setStatus = (text, ok)=>{
+      statusEl.textContent = text;
+      dropEl.classList.toggle('is-loaded', !!ok);
+    };
+  }
+
+  const dropBase1 = document.getElementById('dropBase1');
+  const dropBase2 = document.getElementById('dropBase2');
+
+  wireDrop(dropBase1, document.getElementById('fileBase1'), document.getElementById('statusBase1'), (file)=>{
+    dropBase1._setStatus('lendo...', false);
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      try{
+        base1Data = parseBase1(e.target.result, file.name);
+        dropBase1._setStatus(file.name + ' · ' + fmt(base1Data.totalGeral) + ' pacotes · ' + (base1Data.formatDetected || '') + cycleTag(base1Data), true);
+        updateCicloBadge();
+        compute();
+        renderChegadaTab();
+        saveBase1ToStorage(e.target.result, file.name);
+      }catch(err){
+        dropBase1._setStatus('erro ao ler arquivo', false);
+        showError('Base estrutura: ' + err.message);
+      }
+    };
+    reader.onerror = ()=>{ showError('Não consegui ler o arquivo da base estrutura.'); };
+    reader.readAsArrayBuffer(file);
+  });
+
+  wireDrop(dropBase2, document.getElementById('fileBase2'), document.getElementById('statusBase2'), (file)=>{
+    dropBase2._setStatus('lendo...', false);
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      try{
+        base2Rows = parseBase2(e.target.result);
+        dropBase2._setStatus(file.name + ' · ' + fmt(base2Rows.length) + ' linhas', true);
+        compute();
+        saveBase2ToStorage(e.target.result, file.name);
+      }catch(err){
+        dropBase2._setStatus('erro ao ler arquivo', false);
+        showError('Base faltantes: ' + err.message);
+      }
+    };
+    reader.onerror = ()=>{ showError('Não consegui ler o arquivo da base faltantes.'); };
+    reader.readAsText(file, 'utf-8');
+  });
+
+  document.getElementById('btnClearSaved').addEventListener('click', async ()=>{
+    if(!confirm('Isso remove as bases salvas no banco de dados (afeta todos os locais onde este painel é aberto). Deseja continuar?')) return;
+    try{
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .delete()
+        .in('chave', ['base1', 'base2', 'totalGeralManual']);
+      if(error) throw error;
+      await supabaseClient.storage.from(STORAGE_BUCKET).remove([BASE1_STORAGE_PATH]);
+    }catch(err){
+      showError('Não consegui limpar os dados salvos: ' + (err.message || err));
+      return;
+    }
+    location.reload();
+  });
+
+  // ---------- refresh (manual e automático) — busca dados novos do banco sem recarregar a página ----------
+  let isRefreshing = false;
+  async function refreshData(showSpinner){
+    if(isRefreshing) return; // evita duas buscas ao mesmo tempo
+    isRefreshing = true;
+    const btn = document.getElementById('btnRefreshData');
+    const icon = document.getElementById('refreshIcon');
+    if(showSpinner){ btn.disabled = true; icon.classList.add('spinning'); }
+    try{
+      await loadSavedData();
+    }finally{
+      isRefreshing = false;
+      if(showSpinner){ icon.classList.remove('spinning'); btn.disabled = false; }
+      tickClock();
+    }
+  }
+
+  // ---------- ajuste manual do Total Geral ----------
+  const btnEditTotal = document.getElementById('btnEditTotal');
+  const totalManualRow = document.getElementById('totalManualRow');
+  const inputTotalManual = document.getElementById('inputTotalManual');
+
+  btnEditTotal.addEventListener('click', ()=>{
+    const isOpen = totalManualRow.style.display !== 'none';
+    if(isOpen){
+      totalManualRow.style.display = 'none';
+      return;
+    }
+    inputTotalManual.value = getEffectiveTotalGeral() || '';
+    totalManualRow.style.display = 'flex';
+    inputTotalManual.focus();
+    inputTotalManual.select();
+  });
+
+  document.getElementById('btnSaveTotalManual').addEventListener('click', async ()=>{
+    const n = Number(inputTotalManual.value);
+    if(inputTotalManual.value === '' || isNaN(n) || n < 0){
+      showError('Digite um número válido para o Total Geral.');
+      return;
+    }
+    manualTotalGeral = n;
+    updateTotalManualUI();
+    totalManualRow.style.display = 'none';
+    if(base1Data && base2Rows) recomputeAll();
+    await saveManualTotalToStorage(n);
+  });
+
+  document.getElementById('btnClearTotalManual').addEventListener('click', async ()=>{
+    manualTotalGeral = null;
+    updateTotalManualUI();
+    totalManualRow.style.display = 'none';
+    if(base1Data && base2Rows) recomputeAll();
+    await clearManualTotalFromStorage();
+  });
+
+  document.getElementById('btnRefreshData').addEventListener('click', ()=> refreshData(true));
+
+  // busca dados novos sozinho a cada 45s (sem precisar clicar em nada); usa o
+  // spinner "silencioso" pra não ficar piscando o botão o tempo todo
+  setInterval(()=> refreshData(false), 45000);
+
+  // ---------- carregar dados salvos do banco de dados ao abrir o painel ----------
+  loadSavedData();
+</script>
+
+</body>
+</html>
