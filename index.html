@@ -1690,23 +1690,54 @@
 
   let lastMetricIds = { d1: [], recebido: [], onWay: [], faltante: [], faltanteAvailable: false };
 
+  // ---------- Classificação de cada pacote do CSV (D-1 / Recebido do dia / On Way) ----------
+  // O CSV do sistema é a foto mais recente (tem "Localização" e "Data de Inbound").
+  // A Planification costuma ser extraída depois que a carga do dia já chegou, então o
+  // STATUS dela marca como "at_station" também o que entrou HOJE — por isso não dá pra
+  // usar só o status pra separar D-1 de Recebido do dia.
+  // Regra:
+  //   • Na estação + Data de Inbound do dia  → Recebido do dia
+  //   • Na estação sem Inbound (ou Inbound de dia anterior) → D-1
+  //   • Caminho para a estação → On Way
+  // Se o CSV não tiver a coluna "Data de Inbound", cai na regra antiga (status da Planification).
+  const D1_STATUSES = new Set(['at_station|sorting','at_station|buffered']);
+  function getReferenceDay(){
+    let ref = null;
+    for(const r of (base2Rows || [])){
+      if(r.inboundDate && (!ref || r.inboundDate > ref)) ref = r.inboundDate;
+    }
+    return ref; // dia da operação = data do inbound mais recente do CSV
+  }
+  function classifyRow(r, statusMap, refDay){
+    if(r.loc === 'Na estação'){
+      if(refDay){
+        return (r.inboundDate && sameDay(r.inboundDate, refDay)) ? 'recebido' : 'd1';
+      }
+      const status = statusMap.get(r.id);
+      return (status !== undefined && D1_STATUSES.has(status)) ? 'd1' : 'recebido';
+    }
+    if(r.loc === 'Caminho para a estação') return 'onWay';
+    // localização desconhecida: usa o status da Planification só pra não perder D-1
+    const status = statusMap.get(r.id);
+    return (status !== undefined && D1_STATUSES.has(status)) ? 'd1' : 'outro';
+  }
+
   function recomputeAll(){
     const { statusMap, baseIds } = base1Data;
     const totalGeral = getEffectiveTotalGeral();
-    const D1_STATUSES = new Set(['at_station|sorting','at_station|buffered']);
     const allRows = base2Rows;        // everything except On Way uses the full data
     const visibleRows = getVisibleRows(); // filtered by excludedOrigins — only feeds On Way
+    const refDay = getReferenceDay();
 
     let d1 = 0, recebido = 0;
     const d1Ids = [], recebidoIds = [];
     const recebidoRows = [];
     for(const r of allRows){
-      const status = statusMap.get(r.id);
-      const isD1 = status !== undefined && D1_STATUSES.has(status);
-      if(isD1){
+      const cls = classifyRow(r, statusMap, refDay);
+      if(cls === 'd1'){
         d1++;
         d1Ids.push(r.id);
-      } else if(r.loc === 'Na estação'){
+      } else if(cls === 'recebido'){
         recebido++;
         recebidoIds.push(r.id);
         recebidoRows.push(r);
@@ -1716,9 +1747,7 @@
     let onWay = 0;
     const onWayIds = [];
     for(const r of visibleRows){
-      const status = statusMap.get(r.id);
-      const isD1 = status !== undefined && D1_STATUSES.has(status);
-      if(!isD1 && r.loc === 'Caminho para a estação'){
+      if(classifyRow(r, statusMap, refDay) === 'onWay'){
         onWay++;
         onWayIds.push(r.id);
       }
@@ -1822,15 +1851,13 @@
 
   function computeOnWayByOrigin(){
     const { statusMap, records } = base1Data;
-    const D1_STATUSES = new Set(['at_station|sorting','at_station|buffered']);
     const visibleRows = getVisibleRows(); // mesmo filtro de origem usado no card On Way
     const today = new Date();
+    const refDay = getReferenceDay();
     const byOrigin = new Map(); // origin -> {OnTime, Early, Delay}
 
     for(const r of visibleRows){
-      const status = statusMap.get(r.id);
-      const isD1 = status !== undefined && D1_STATUSES.has(status);
-      if(isD1 || r.loc !== 'Caminho para a estação') continue; // só os pacotes que contam pro card On Way
+      if(classifyRow(r, statusMap, refDay) !== 'onWay') continue; // só os pacotes que contam pro card On Way
 
       const rec = records.get(r.id);
       const origin = rec && rec.facility;
