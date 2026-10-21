@@ -858,6 +858,7 @@
                 <th class="num">Early</th>
                 <th class="num">On Time</th>
                 <th class="num">Delay</th>
+                <th class="num">Sem Data</th>
                 <th class="num">Total</th>
                 <th class="num">%</th>
               </tr>
@@ -935,6 +936,7 @@
                     <th data-sort="onTime" class="sortable num">On Time</th>
                     <th data-sort="early" class="sortable num">Early</th>
                     <th data-sort="delay" class="sortable num">Delay</th>
+                    <th data-sort="semData" class="sortable num">Sem Data</th>
                     <th data-sort="total" class="sortable num col-total">Total</th>
                   </tr>
                 </thead>
@@ -943,10 +945,11 @@
                   <tr>
                     <td></td>
                     <td></td>
-                    <td><b>Total (On Time + Early + Delay)</b></td>
+                    <td><b>Total (On Time + Early + Delay + Sem Data)</b></td>
                     <td class="num" id="chegadaOrigemTotalOnTime"><b>0</b></td>
                     <td class="num" id="chegadaOrigemTotalEarly"><b>0</b></td>
                     <td class="num" id="chegadaOrigemTotalDelay"><b>0</b></td>
+                    <td class="num" id="chegadaOrigemTotalSemData"><b>0</b></td>
                     <td class="num col-total" id="chegadaOrigemTotalTotal"><b>0</b></td>
                   </tr>
                 </tfoot>
@@ -1223,13 +1226,13 @@
 
     // garante que todas as origens apareçam, mesmo com 0
     getAllOrigins().forEach(origin => {
-      if(!map.has(origin)) map.set(origin, {origin, OnTime:0, Early:0, Delay:0, total:0});
+      if(!map.has(origin)) map.set(origin, {origin, OnTime:0, Early:0, Delay:0, SemData:0, total:0});
     });
 
     return Array.from(map.values()).map(c => {
       const arr = base1Data.arrivalByOrigin && base1Data.arrivalByOrigin.get(c.origin);
       return {
-        origin: c.origin, onTime: c.OnTime, early: c.Early, delay: c.Delay, total: c.total,
+        origin: c.origin, onTime: c.OnTime, early: c.Early, delay: c.Delay, semData: c.SemData || 0, total: c.total,
         arrivalTimeStr: arr ? arr.timeStr : '—',
         arrivalDateStr: arr ? (arr.dateStr || today.toLocaleDateString('pt-BR')) : '—'
       };
@@ -1250,18 +1253,20 @@
     const tbody = document.getElementById('tblChegadaOrigem');
     document.getElementById('chegadaOrigemBadge').textContent = fmt(sorted.length);
     tbody.innerHTML = sorted.map(d =>
-      '<tr><td>'+d.arrivalDateStr+'</td><td>'+d.arrivalTimeStr+'</td><td>'+d.origin+'</td><td class="num">'+fmt(d.onTime)+'</td><td class="num">'+fmt(d.early)+'</td><td class="num">'+fmt(d.delay)+'</td><td class="num col-total">'+fmt(d.total)+'</td></tr>'
+      '<tr><td>'+d.arrivalDateStr+'</td><td>'+d.arrivalTimeStr+'</td><td>'+d.origin+'</td><td class="num">'+fmt(d.onTime)+'</td><td class="num">'+fmt(d.early)+'</td><td class="num">'+fmt(d.delay)+'</td><td class="num">'+fmt(d.semData)+'</td><td class="num col-total">'+fmt(d.total)+'</td></tr>'
     ).join('');
 
     const totalOnTime = sorted.reduce((s,d)=>s+d.onTime, 0);
     const totalEarly = sorted.reduce((s,d)=>s+d.early, 0);
     const totalDelay = sorted.reduce((s,d)=>s+d.delay, 0);
+    const totalSemData = sorted.reduce((s,d)=>s+d.semData, 0);
     const totalTotal = sorted.reduce((s,d)=>s+d.total, 0);
+    document.getElementById('chegadaOrigemTotalSemData').innerHTML = '<b>'+fmt(totalSemData)+'</b>';
     document.getElementById('chegadaOrigemTotalOnTime').innerHTML = '<b>'+fmt(totalOnTime)+'</b>';
     document.getElementById('chegadaOrigemTotalEarly').innerHTML = '<b>'+fmt(totalEarly)+'</b>';
     document.getElementById('chegadaOrigemTotalDelay').innerHTML = '<b>'+fmt(totalDelay)+'</b>';
     document.getElementById('chegadaOrigemTotalTotal').innerHTML = '<b>'+fmt(totalTotal)+'</b>';
-    document.getElementById('chegadaGrandTotalBadge').textContent = 'On Time + Early + Delay: ' + fmt(totalTotal);
+    document.getElementById('chegadaGrandTotalBadge').textContent = 'On Time + Early + Delay + Sem Data: ' + fmt(totalTotal);
 
     document.querySelectorAll('#tblChegadaOrigemTable th.sortable').forEach(th => {
       const key = th.dataset.sort;
@@ -1691,35 +1696,19 @@
   let lastMetricIds = { d1: [], recebido: [], onWay: [], faltante: [], faltanteAvailable: false };
 
   // ---------- Classificação de cada pacote do CSV (D-1 / Recebido do dia / On Way) ----------
-  // O CSV do sistema é a foto mais recente (tem "Localização" e "Data de Inbound").
-  // A Planification costuma ser extraída depois que a carga do dia já chegou, então o
-  // STATUS dela marca como "at_station" também o que entrou HOJE — por isso não dá pra
-  // usar só o status pra separar D-1 de Recebido do dia.
-  // Regra:
-  //   • Na estação + Data de Inbound do dia  → Recebido do dia
-  //   • Na estação sem Inbound (ou Inbound de dia anterior) → D-1
-  //   • Caminho para a estação → On Way
-  // Se o CSV não tiver a coluna "Data de Inbound", cai na regra antiga (status da Planification).
+  // Mesma regra do painel original (que bate com o sistema):
+  //   • STATUS na Planification = at_station|sorting ou at_station|buffered → D-1
+  //     (vale para qualquer localização no CSV — tem prioridade)
+  //   • senão, Localização "Na estação"             → Recebido do dia
+  //   • senão, Localização "Caminho para a estação" → On Way
   const D1_STATUSES = new Set(['at_station|sorting','at_station|buffered']);
-  function getReferenceDay(){
-    let ref = null;
-    for(const r of (base2Rows || [])){
-      if(r.inboundDate && (!ref || r.inboundDate > ref)) ref = r.inboundDate;
-    }
-    return ref; // dia da operação = data do inbound mais recente do CSV
-  }
-  function classifyRow(r, statusMap, refDay){
-    if(r.loc === 'Na estação'){
-      if(refDay){
-        return (r.inboundDate && sameDay(r.inboundDate, refDay)) ? 'recebido' : 'd1';
-      }
-      const status = statusMap.get(r.id);
-      return (status !== undefined && D1_STATUSES.has(status)) ? 'd1' : 'recebido';
-    }
-    if(r.loc === 'Caminho para a estação') return 'onWay';
-    // localização desconhecida: usa o status da Planification só pra não perder D-1
+  function getReferenceDay(){ return null; } // mantido só por compatibilidade
+  function classifyRow(r, statusMap){
     const status = statusMap.get(r.id);
-    return (status !== undefined && D1_STATUSES.has(status)) ? 'd1' : 'outro';
+    if(status !== undefined && D1_STATUSES.has(status)) return 'd1';
+    if(r.loc === 'Na estação') return 'recebido';
+    if(r.loc === 'Caminho para a estação') return 'onWay';
+    return 'outro';
   }
 
   function recomputeAll(){
@@ -1727,13 +1716,12 @@
     const totalGeral = getEffectiveTotalGeral();
     const allRows = base2Rows;        // everything except On Way uses the full data
     const visibleRows = getVisibleRows(); // filtered by excludedOrigins — only feeds On Way
-    const refDay = getReferenceDay();
-
+    
     let d1 = 0, recebido = 0;
     const d1Ids = [], recebidoIds = [];
     const recebidoRows = [];
     for(const r of allRows){
-      const cls = classifyRow(r, statusMap, refDay);
+      const cls = classifyRow(r, statusMap);
       if(cls === 'd1'){
         d1++;
         d1Ids.push(r.id);
@@ -1747,7 +1735,7 @@
     let onWay = 0;
     const onWayIds = [];
     for(const r of visibleRows){
-      if(classifyRow(r, statusMap, refDay) === 'onWay'){
+      if(classifyRow(r, statusMap) === 'onWay'){
         onWay++;
         onWayIds.push(r.id);
       }
@@ -1772,7 +1760,7 @@
     renderCards({totalGeral, d1, onWay, recebido, noCarrinho});
     renderOrigemChart();
     renderStatusChart({d1, onWay, recebido, noCarrinho, totalGeral});
-    renderEarlyTable(allRows);
+    renderEarlyTable();
     renderNaoAtreladosTable(allRows);
     renderIlhasTable(recebidoRows);
   }
@@ -1853,30 +1841,30 @@
     const { statusMap, records } = base1Data;
     const visibleRows = getVisibleRows(); // mesmo filtro de origem usado no card On Way
     const today = new Date();
-    const refDay = getReferenceDay();
-    const byOrigin = new Map(); // origin -> {OnTime, Early, Delay}
+    const byOrigin = new Map(); // origin -> {OnTime, Early, Delay, SemData}
 
     for(const r of visibleRows){
-      if(classifyRow(r, statusMap, refDay) !== 'onWay') continue; // só os pacotes que contam pro card On Way
+      if(classifyRow(r, statusMap) !== 'onWay') continue; // só os pacotes que contam pro card On Way
 
       const rec = records.get(r.id);
-      const origin = rec && rec.facility;
-      if(!origin) continue;
-      if(!byOrigin.has(origin)) byOrigin.set(origin, {OnTime:0, Early:0, Delay:0});
+      // pacote sem origem ainda conta no card On Way, então aparece aqui como "Sem Origem"
+      const origin = (rec && rec.facility) ? rec.facility : 'Sem Origem';
+      if(!byOrigin.has(origin)) byOrigin.set(origin, {OnTime:0, Early:0, Delay:0, SemData:0});
 
-      // classifica cada pacote On Way pelo prazo de entrega (promise_date_end)
-      if(rec.promiseEnd && !isNaN(rec.promiseEnd.getTime())){
+      if(rec && rec.promiseEnd && !isNaN(rec.promiseEnd.getTime())){
         const d = rec.promiseEnd;
         let cls;
         if(sameDay(d, today)) cls = 'OnTime';
         else if(d.getTime() < today.getTime()) cls = 'Delay';
         else cls = 'Early';
         byOrigin.get(origin)[cls]++;
+      } else {
+        byOrigin.get(origin).SemData++; // sem data: conta como "Sem Data" em vez de sumir
       }
     }
 
     const arr = Array.from(byOrigin.entries()).map(([origin, c]) => ({
-      origin, ...c, total: c.OnTime + c.Early + c.Delay
+      origin, ...c, total: c.OnTime + c.Early + c.Delay + c.SemData
     }));
     arr.sort((a,b) => b.total - a.total);
     return arr;
@@ -1909,7 +1897,9 @@
           { label:'On Time', data:onTime, backgroundColor:'#C97D0C', stack:'s', minBarLength:18, borderRadius:3, barPercentage:.82, categoryPercentage:.86 },
           { label:'Early', data:early, backgroundColor:'#94A3B8', stack:'s', minBarLength:18, borderRadius:3, barPercentage:.82, categoryPercentage:.86 },
           { label:'Delay', data:delay, backgroundColor:'#0B5FA5', stack:'s', minBarLength:18, borderRadius:3, barPercentage:.82, categoryPercentage:.86 },
-        ]
+        ].concat(data.some(d => d.SemData > 0)
+          ? [{ label:'Sem Data', data:data.map(d => d.SemData), backgroundColor:'#8B7FD6', stack:'s', minBarLength:18, borderRadius:3, barPercentage:.82, categoryPercentage:.86 }]
+          : [])
       },
       options: {
         responsive:true,
@@ -1962,8 +1952,9 @@
   }
 
   // ---------- Origens Com % Mais Early ----------
-  function renderEarlyTable(rows){
-    const data = classifyOrigem(rows); // already has {origin, OnTime, Early, Delay, total}
+  function renderEarlyTable(){
+    // Mesma base do gráfico "On Way por Origem" (só pacotes On Way, respeitando o filtro).
+    const data = computeOnWayByOrigin();
     const ranked = data
       .filter(d => d.total > 0)
       .map(d => ({ ...d, pctEarly: d.Early / d.total }))
@@ -1976,6 +1967,7 @@
         <td class="num c-early">${fmt(d.Early)}</td>
         <td class="num c-ontime">${fmt(d.OnTime)}</td>
         <td class="num c-delay">${fmt(d.Delay)}</td>
+        <td class="num" style="color:var(--text-lo)">${fmt(d.SemData)}</td>
         <td class="num">${fmt(d.total)}</td>
         <td class="num c-pct">${(d.pctEarly*100).toFixed(1).replace('.', ',')}%</td>
       </tr>
