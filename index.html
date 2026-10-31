@@ -543,20 +543,6 @@
     cursor:not-allowed;
   }
   .export-icon{ font-size:14px; }
-  .sync-status{
-    margin-left:auto;
-    font-family:var(--mono);
-    font-size:11px;
-    font-weight:700;
-    padding:5px 10px;
-    border-radius:7px;
-    background:rgba(30,158,99,.1);
-    color:var(--green);
-    white-space:nowrap;
-  }
-  .sync-status[data-kind="busy"]{ background:rgba(11,95,165,.1); color:var(--kn-blue); }
-  .sync-status[data-kind="err"]{ background:rgba(224,69,63,.1); color:var(--red); }
-  .actions-row{ flex-wrap:wrap; }
   .export-hint{
     font-family:var(--mono);
     font-size:11px;
@@ -758,11 +744,11 @@
 
   <div class="upload-row">
     <label class="drop" id="dropBase1">
-      <input type="file" id="fileBase1" accept=".xlsx,.xls">
+      <input type="file" id="fileBase1" accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods">
       <div class="drop-icon">①</div>
       <div class="drop-text">
         <div class="label">Base estrutura (.xlsx)</div>
-        <div class="sub">aceita formato BASE+PLANIFICATION ou Planification (RTG)</div>
+        <div class="sub">aceita qualquer base com Planification (abas detectadas pelas colunas)</div>
       </div>
       <div class="drop-status" id="statusBase1">arraste ou clique</div>
     </label>
@@ -799,7 +785,6 @@
       <span class="export-icon">🗑️</span> Limpar dados salvos
     </button>
     <span class="export-hint" id="exportHint">envie as duas bases para liberar</span>
-    <span class="sync-status" id="syncStatus" data-kind="busy">☁️ conectando...</span>
   </div>
 
   <div class="filter-row" id="filterRow" style="display:none;">
@@ -1059,168 +1044,108 @@
   }
 
   // ---------- persistência (banco de dados Supabase) ----------
-  // Como funciona a sincronização entre PCs:
-  //  • Base estrutura: depois de ler o .xlsx, o painel salva no Storage do
-  //    Supabase só os DADOS JÁ PROCESSADOS (JSON leve), num arquivo com nome
-  //    novo a cada envio (base1/<data>.json). Nome novo = nunca pega versão
-  //    velha do cache (o problema antigo: o arquivo fixo "base1.xlsx" ficava
-  //    1h em cache e os outros PCs continuavam vendo a base antiga).
-  //  • Base faltantes: o texto do CSV fica direto na tabela painel_dados.
-  //  • A cada 20s o painel consulta só a DATA de atualização de cada base
-  //    (consulta minúscula). Só baixa/recalcula quando alguém subiu algo novo.
-  //  • Enquanto um envio está em andamento, a atualização automática não
-  //    sobrescreve o que você acabou de subir.
+  // Os arquivos originais (base estrutura e base faltantes) são salvos numa
+  // tabela do Supabase. Ao subir um arquivo novo, o registro anterior é
+  // SUBSTITUÍDO (upsert pela chave 'base1'/'base2'). Qualquer PC que abrir
+  // este arquivo .html carrega os dados mais recentes automaticamente.
   const SUPABASE_URL = 'https://cnpcsovjomonctbggbac.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNucGNzb3Zqb21vbmN0YmdnYmFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NjE4NzUsImV4cCI6MjEwMjAzNzg3NX0.lpumXh7HmzmhUcBqNSAhaR3S7Cd6TFg5sivWybjsra4';
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const SUPABASE_TABLE = 'painel_dados';
   const STORAGE_BUCKET = 'painel-arquivos';
-  const LEGACY_BASE1_PATH = 'base1.xlsx'; // formato antigo (só lido, para compatibilidade)
-  const SYNC_INTERVAL_MS = 20000;
+  const BASE1_STORAGE_PATH = 'base1.xlsx';
 
-  // versão (atualizado_em) que este PC já tem de cada chave
-  const lastSeenVersion = { base1: null, base2: null, totalGeralManual: null };
-  // envios em andamento — enquanto true, o refresh automático não mexe naquela chave
-  const savingNow = { base1: false, base2: false, totalGeralManual: false };
-  // muda toda vez que alguém sobe arquivo NESTE PC — se uma busca no banco que
-  // já estava em andamento terminar depois disso, o resultado dela é descartado
-  const localGen = { base1: 0, base2: 0 };
-
-  function verMs(v){ if(!v) return 0; const t = new Date(v).getTime(); return isNaN(t) ? 0 : t; }
-  function errText(err){ return (err && (err.message || err.error_description || err.error)) || JSON.stringify(err); }
-
-  function setSyncStatus(text, kind){
-    const el = document.getElementById('syncStatus');
-    if(!el) return;
-    el.textContent = text;
-    el.dataset.kind = kind || 'ok';
-  }
-  function hhmm(d){ d = d || new Date(); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0'); }
-
-  // ---- base estrutura <-> JSON compacto ----
-  function serializeBase1(d){
-    const records = [];
-    d.records.forEach((rec, id) => {
-      const pe = (rec.promiseEnd && !isNaN(rec.promiseEnd.getTime())) ? rec.promiseEnd.getTime() : null;
-      records.push([id, rec.status || '', rec.facility || null, pe, rec.rota || '']);
-    });
-    return JSON.stringify({
-      v: 2,
-      totalGeral: d.totalGeral,
-      formatDetected: d.formatDetected || '',
-      cycle: d.cycle || '', cycleFamily: d.cycleFamily || '',
-      facilityColumnFound: !!d.facilityColumnFound,
-      estArrivalColumnFound: !!d.estArrivalColumnFound,
-      baseIds: d.baseIds ? Array.from(d.baseIds) : null,
-      arrivalByOrigin: d.arrivalByOrigin ? Array.from(d.arrivalByOrigin.entries()) : [],
-      records
-    });
-  }
-  function deserializeBase1(json){
-    const o = typeof json === 'string' ? JSON.parse(json) : json;
-    const records = new Map();
-    const statusMap = new Map();
-    for(const [id, status, facility, pe, rota] of o.records){
-      records.set(id, { status, facility, promiseEnd: pe === null ? null : new Date(pe), rota });
-      statusMap.set(id, status);
-    }
-    return {
-      statusMap, records,
-      totalGeral: o.totalGeral,
-      baseIds: o.baseIds ? new Set(o.baseIds) : null,
-      arrivalByOrigin: new Map(o.arrivalByOrigin || []),
-      estArrivalColumnFound: o.estArrivalColumnFound,
-      facilityColumnFound: o.facilityColumnFound,
-      formatDetected: o.formatDetected,
-      cycle: o.cycle, cycleFamily: o.cycleFamily
-    };
+  function base64ToArrayBuffer(b64){
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
   }
 
-  function base1StatusText(name, suffix){
-    return name + ' · ' + fmt(base1Data.totalGeral) + ' pacotes · ' + (base1Data.formatDetected || '') + suffix;
-  }
-
-  async function saveBase1ToStorage(filename){
-    savingNow.base1 = true;
-    setSyncStatus('☁️ salvando base estrutura...', 'busy');
+  async function saveBase1ToStorage(arrayBuffer, filename){
     try{
-      const json = serializeBase1(base1Data);
-      const path = 'base1/' + Date.now() + '.json';
+      // Arquivo binário (XLSX) vai pro Storage do Supabase — evita timeout que
+      // acontecia tentando gravar o arquivo inteiro em base64 numa coluna de texto.
       const { error: uploadError } = await supabaseClient
-        .storage.from(STORAGE_BUCKET)
-        .upload(path, new Blob([json], { type:'application/json' }), {
-          upsert: true, cacheControl: '0', contentType: 'application/json'
+        .storage
+        .from(STORAGE_BUCKET)
+        .upload(BASE1_STORAGE_PATH, arrayBuffer, {
+          upsert: true,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         });
       if(uploadError) throw uploadError;
 
-      // registro pega o caminho anterior pra apagar depois (não deixa lixo no Storage)
-      const { data: oldRow } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave','base1').maybeSingle();
-      const oldPath = oldRow && oldRow.conteudo;
-
-      const stamp = new Date().toISOString();
+      // Só o nome do arquivo e a data ficam na tabela (registro pequeno, rápido)
       const { error: metaError } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .upsert({ chave:'base1', filename, conteudo: path, atualizado_em: stamp }, { onConflict:'chave' });
+        .upsert({
+          chave: 'base1',
+          filename,
+          conteudo: null,
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'chave' });
       if(metaError) throw metaError;
-      lastSeenVersion.base1 = stamp;
 
-      if(oldPath && oldPath !== path){
-        supabaseClient.storage.from(STORAGE_BUCKET).remove([oldPath]).catch(()=>{});
-      }
-      dropBase1._setStatus(base1StatusText(filename, ' (salvo no banco ✓)'), true);
-      setSyncStatus('☁️ base estrutura salva às ' + hhmm(), 'ok');
-      if(errorBox.dataset.kind === 'save') clearError();
+      dropBase1._setStatus(filename + ' · ' + fmt(base1Data.totalGeral) + ' pacotes · ' + (base1Data.formatDetected || '') + ' (salvo no banco ✓)', true);
     }catch(err){
       console.error('Falha ao salvar base estrutura no Supabase:', err);
-      dropBase1._setStatus(filename + ' · carregado só neste PC (NÃO salvo no banco)', false);
-      setSyncStatus('⚠️ base estrutura não foi salva', 'err');
-      showError('BASE ESTRUTURA não foi salva no banco de dados: ' + errText(err) +
-        '\nSe aparecer "Bucket not found" ou "row-level security", rode o SQL de configuração no Supabase.', 'save');
-    }finally{
-      savingNow.base1 = false;
+      dropBase1._setStatus(filename + ' · carregado, mas NÃO salvo no banco', false);
+      showError('BASE ESTRUTURA não foi salva no banco de dados: ' + (err.message || JSON.stringify(err)), 'save');
     }
   }
-
   async function saveBase2ToStorage(text, filename){
-    savingNow.base2 = true;
-    setSyncStatus('☁️ salvando base faltantes...', 'busy');
     try{
-      const stamp = new Date().toISOString();
       const { error } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .upsert({ chave:'base2', filename, conteudo: text, atualizado_em: stamp }, { onConflict:'chave' });
+        .upsert({
+          chave: 'base2',
+          filename,
+          conteudo: text,
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'chave' });
       if(error) throw error;
-      lastSeenVersion.base2 = stamp;
       dropBase2._setStatus(filename + ' · ' + fmt(base2Rows.length) + ' linhas (salvo no banco ✓)', true);
-      setSyncStatus('☁️ base faltantes salva às ' + hhmm(), 'ok');
-      if(errorBox.dataset.kind === 'save') clearError();
     }catch(err){
       console.error('Falha ao salvar base faltantes no Supabase:', err);
-      dropBase2._setStatus(filename + ' · carregado só neste PC (NÃO salvo no banco)', false);
-      setSyncStatus('⚠️ base faltantes não foi salva', 'err');
-      showError('BASE FALTANTES não foi salva no banco de dados: ' + errText(err), 'save');
-    }finally{
-      savingNow.base2 = false;
+      dropBase2._setStatus(filename + ' · carregado, mas NÃO salvo no banco', false);
+      showError('BASE FALTANTES não foi salva no banco de dados: ' + (err.message || JSON.stringify(err)), 'save');
+    }
+  }
+  async function saveManualTotalToStorage(value){
+    try{
+      const { error } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .upsert({
+          chave: 'totalGeralManual',
+          filename: null,
+          conteudo: String(value),
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'chave' });
+      if(error) throw error;
+    }catch(err){
+      showError('Total geral manual não foi salvo no banco de dados: ' + (err.message || JSON.stringify(err)), 'save');
     }
   }
 
-  async function saveManualTotalToStorage(value){
-    savingNow.totalGeralManual = true;
+  async function clearManualTotalFromStorage(){
     try{
-      const stamp = new Date().toISOString();
+      // Usa upsert (mesma operação já usada para salvar) em vez de delete, pois
+      // a policy de segurança do Supabase pode permitir insert/update mas não
+      // delete para a chave anon — assim a limpeza não corre risco de ser
+      // silenciosamente ignorada pelo banco.
       const { error } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .upsert({ chave:'totalGeralManual', filename:null, conteudo: value === null ? '' : String(value), atualizado_em: stamp }, { onConflict:'chave' });
+        .upsert({
+          chave: 'totalGeralManual',
+          filename: null,
+          conteudo: '',
+          atualizado_em: new Date().toISOString()
+        }, { onConflict: 'chave' });
       if(error) throw error;
-      lastSeenVersion.totalGeralManual = stamp;
     }catch(err){
-      showError('Total geral manual não foi salvo no banco de dados: ' + errText(err), 'save');
-    }finally{
-      savingNow.totalGeralManual = false;
+      showError('Não consegui remover o total geral manual do banco de dados: ' + (err.message || JSON.stringify(err)), 'save');
     }
   }
-  // limpar = gravar vazio (upsert), pois a policy pode não permitir delete
-  async function clearManualTotalFromStorage(){ return saveManualTotalToStorage(null); }
 
   function updateTotalManualUI(){
     const tag = document.getElementById('totalGeralModeTag');
@@ -1228,66 +1153,66 @@
     tag.style.display = isManual ? 'inline-block' : 'none';
   }
 
-  // Busca no banco só o que mudou desde a última vez. Retorna true se algo mudou.
   async function loadSavedData(){
-    const { data: metas, error: metaErr } = await supabaseClient
-      .from(SUPABASE_TABLE)
-      .select('chave, filename, atualizado_em')
-      .in('chave', ['base1','base2','totalGeralManual']);
-    if(metaErr) throw metaErr;
+    // base1 (xlsx) — arquivo no Storage + nome/data na tabela
+    try{
+      const { data: metaRows } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select('filename')
+        .eq('chave', 'base1')
+        .limit(1);
+      const meta = metaRows && metaRows[0];
 
-    const meta = {};
-    (metas || []).forEach(m => { meta[m.chave] = m; });
-    const changed = key => meta[key] && !savingNow[key] && verMs(meta[key].atualizado_em) !== verMs(lastSeenVersion[key]);
-    let anyChange = false;
+      const { data: fileBlob, error: downloadError } = await supabaseClient
+        .storage
+        .from(STORAGE_BUCKET)
+        .download(BASE1_STORAGE_PATH);
+      if(downloadError) throw downloadError;
 
-    // ---- base estrutura ----
-    if(changed('base1')){
-      const gen = localGen.base1;
-      const { data: row1, error: e1 } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave','base1').maybeSingle();
-      if(e1) throw e1;
-      const path = (row1 && row1.conteudo) || LEGACY_BASE1_PATH;
-      const { data: blob, error: dErr } = await supabaseClient.storage.from(STORAGE_BUCKET).download(path);
-      if(dErr) throw new Error('não consegui baixar a base estrutura salva (' + path + '): ' + errText(dErr));
-      const parsed = path.endsWith('.json')
-        ? deserializeBase1(await blob.text())
-        : parseBase1(await blob.arrayBuffer()); // formato antigo
-      if(gen !== localGen.base1 || savingNow.base1) return anyChange; // subiram arquivo aqui no meio — mantém o local
-      base1Data = parsed;
-      lastSeenVersion.base1 = meta.base1.atualizado_em;
-      dropBase1._setStatus(base1StatusText(meta.base1.filename || 'base salva', ' (do banco)'), true);
-      anyChange = true;
+      const buf = await fileBlob.arrayBuffer();
+      base1Data = parseBase1(buf);
+      dropBase1._setStatus((meta && meta.filename || 'base salva') + ' · ' + fmt(base1Data.totalGeral) + ' pacotes · ' + (base1Data.formatDetected || '') + ' (salvo)', true);
+      renderChegadaTab();
+    }catch(err){
+      // ainda não há base estrutura salva — segue sem erro visível
     }
 
-    // ---- base faltantes ----
-    if(changed('base2')){
-      const gen = localGen.base2;
-      const { data: row2, error: e2 } = await supabaseClient.from(SUPABASE_TABLE).select('filename, conteudo').eq('chave','base2').maybeSingle();
-      if(e2) throw e2;
-      if(gen !== localGen.base2 || savingNow.base2) return anyChange;
+    // base2 (csv) — continua direto na tabela (arquivo pequeno)
+    try{
+      const { data: row2 } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select('filename, conteudo')
+        .eq('chave', 'base2')
+        .limit(1)
+        .maybeSingle();
       if(row2 && row2.conteudo){
         base2Rows = parseBase2(row2.conteudo);
-        dropBase2._setStatus((row2.filename || 'base salva') + ' · ' + fmt(base2Rows.length) + ' linhas (do banco)', true);
+        dropBase2._setStatus((row2.filename||'base salva') + ' · ' + fmt(base2Rows.length) + ' linhas (salvo)', true);
       }
-      lastSeenVersion.base2 = meta.base2.atualizado_em;
-      anyChange = true;
+    }catch(err){
+      // ainda não há base faltantes salva — segue sem erro visível
     }
 
-    // ---- total geral manual ----
-    if(changed('totalGeralManual')){
-      const { data: rowM } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave','totalGeralManual').maybeSingle();
-      const n = (rowM && rowM.conteudo !== null && rowM.conteudo !== '') ? Number(rowM.conteudo) : NaN;
-      manualTotalGeral = isNaN(n) ? null : n;
-      lastSeenVersion.totalGeralManual = meta.totalGeralManual.atualizado_em;
-      updateTotalManualUI();
-      anyChange = true;
+    // total geral manual (override) — se existir, sobrescreve o valor calculado da base
+    try{
+      const { data: rowManual } = await supabaseClient
+        .from(SUPABASE_TABLE)
+        .select('conteudo')
+        .eq('chave', 'totalGeralManual')
+        .limit(1)
+        .maybeSingle();
+      if(rowManual && rowManual.conteudo !== null && rowManual.conteudo !== ''){
+        const n = Number(rowManual.conteudo);
+        manualTotalGeral = isNaN(n) ? null : n;
+      } else {
+        manualTotalGeral = null;
+      }
+    }catch(err){
+      // sem valor manual salvo — segue com o automático
     }
+    updateTotalManualUI();
 
-    if(anyChange){
-      if(base1Data && base2Rows) compute();
-      else renderChegadaTab();
-    }
-    return anyChange;
+    if(base1Data || base2Rows) compute();
   }
 
   function getAllOrigins(){
@@ -1446,10 +1371,17 @@
     return s;
   }
 
+  // normaliza nome de coluna/aba: minúsculo, sem acento, espaços/underscores/hífens unificados
+  function normKey(v){
+    if(v===undefined||v===null) return '';
+    return String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toLowerCase().replace(/[\s_\-]+/g,'_').replace(/^_+|_+$/g,'');
+  }
+
   function findHeaderIndex(headerRow, candidates){
-    const norm = headerRow.map(h => (h===undefined||h===null) ? '' : String(h).trim().toLowerCase());
+    const norm = (headerRow||[]).map(normKey);
     for(const cand of candidates){
-      const idx = norm.indexOf(cand.toLowerCase());
+      const idx = norm.indexOf(normKey(cand));
       if(idx !== -1) return idx;
     }
     return -1;
@@ -1458,45 +1390,83 @@
   function findSheetName(workbook, candidates){
     const names = workbook.SheetNames;
     for(const cand of candidates){
-      const hit = names.find(n => n.trim().toLowerCase() === cand.toLowerCase());
+      const hit = names.find(n => normKey(n) === normKey(cand));
       if(hit) return hit;
     }
     return null;
+  }
+
+  // Lê a aba e devolve as linhas a partir da linha de cabeçalho detectada
+  // (aceita título/linhas em branco acima do cabeçalho).
+  const HEADER_HINTS = ['unit_id','status','facility_origin','estimated_arrival','promise_date_end',
+    'rtg_unit_external_id','status_atual','substatus_atual','origem','otimizado','rtg_route_name',
+    'route_plan','parada','shp_facility_id','id do pacote','cidade','bairro','cep'];
+  let _sheetRowsCache = new WeakMap();
+  function getSheetRows(wb, name){
+    const ws = wb.Sheets[name];
+    let cache = _sheetRowsCache.get(wb);
+    if(!cache){ cache = {}; _sheetRowsCache.set(wb, cache); }
+    if(cache[name]) return cache[name];
+    const all = ws ? XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null}) : [];
+    const hints = new Set(HEADER_HINTS.map(normKey));
+    let best = 0, bestScore = -1;
+    for(let i=0;i<Math.min(all.length, 30);i++){
+      const row = all[i] || [];
+      const score = row.reduce((acc,c)=> acc + (hints.has(normKey(c)) ? 1 : 0), 0);
+      if(score > bestScore){ bestScore = score; best = i; }
+    }
+    const rows = all.slice(best);
+    cache[name] = rows;
+    return rows;
+  }
+
+  // Classifica cada aba pelo CONTEÚDO (colunas), não pelo nome.
+  function classifySheets(wb){
+    const out = { plan1: null, plan2: null, base: null, info: [] };
+    for(const name of wb.SheetNames){
+      const header = getSheetRows(wb, name)[0] || [];
+      const has = c => findHeaderIndex(header, [c]) !== -1;
+      const isPlan2 = has('rtg_unit_external_id') && has('status_atual');
+      const isPlan1 = has('unit_id') && has('status');
+      const isBase  = !isPlan2 && has('rtg_unit_external_id');
+      out.info.push(name);
+      if(isPlan2 && !out.plan2) out.plan2 = name;
+      else if(isPlan1 && !out.plan1) out.plan1 = name;
+      else if(isBase && !out.base) out.base = name;
+    }
+    // desempate pelo nome se alguma não foi achada pelas colunas
+    const byName = (re) => wb.SheetNames.find(n => re.test(normKey(n)));
+    if(!out.base) out.base = byName(/^base/) || null;
+    if(out.base && (out.base === out.plan1 || out.base === out.plan2)) out.base = null;
+    return out;
   }
 
   // ---------- parse BASE1 (xlsx) ----------
   // ---------- ponto de entrada: detecta o formato do arquivo e delega ----------
   function parseBase1(arrayBuffer){
     const wb = XLSX.read(arrayBuffer, {type:'array', cellDates:true});
+    _sheetRowsCache = new WeakMap();
+    const c = classifySheets(wb);
 
-    const baseSheetName = findSheetName(wb, ['BASE']);
-    const planSheetName = findSheetName(wb, ['PLANIFICATION']);
-
-    // Formato 1: abas "BASE" + "PLANIFICATION" (unit_id / status / facility_origin ...)
-    if(baseSheetName && planSheetName){
-      return parseFormat1(wb, baseSheetName, planSheetName);
+    // Formato 1: aba tipo PLANIFICATION (unit_id / status) — com ou sem aba BASE
+    if(c.plan1){
+      return parseFormat1(wb, c.base, c.plan1);
+    }
+    // Formato 2: aba com RTG_UNIT_EXTERNAL_ID / STATUS_ATUAL
+    if(c.plan2){
+      const rows = getSheetRows(wb, c.plan2);
+      return parseFormat2(wb, c.plan2, rows, rows[0] || []);
     }
 
-    // Formato 2: aba única "Planification" com colunas RTG_UNIT_EXTERNAL_ID / STATUS_ATUAL / ...
-    if(planSheetName){
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[planSheetName], {header:1, raw:true, defval:null});
-      const header = rows[0] || [];
-      const looksLikeFormat2 =
-        findHeaderIndex(header, ['rtg_unit_external_id']) !== -1 &&
-        findHeaderIndex(header, ['status_atual']) !== -1;
-      if(looksLikeFormat2){
-        return parseFormat2(wb, planSheetName, rows, header);
-      }
-    }
-
-    throw new Error('Não reconheci o formato desta planilha. Formatos aceitos: (1) abas "BASE" + "PLANIFICATION"; (2) aba "Planification" com colunas RTG_UNIT_EXTERNAL_ID / STATUS_ATUAL.');
+    throw new Error('Não achei os status dos pacotes em nenhuma aba (' + c.info.join(', ') + '). '
+      + 'Preciso de uma aba com as colunas "unit_id" + "status" ou "RTG_UNIT_EXTERNAL_ID" + "STATUS_ATUAL" (o nome da aba não importa).');
   }
 
   // ---------- Formato 1: abas BASE + PLANIFICATION ----------
   function parseFormat1(wb, baseSheetName, planSheetName){
     // Total geral = data rows in BASE sheet
-    const baseRows = XLSX.utils.sheet_to_json(wb.Sheets[baseSheetName], {header:1, raw:true, defval:null});
-    const totalGeral = Math.max(0, baseRows.length - 1); // minus header
+    const baseRows = baseSheetName ? getSheetRows(wb, baseSheetName).filter((r,i)=> i===0 || (r && r.some(v=>v!==null && v!==''))) : [];
+    let totalGeral = Math.max(0, baseRows.length - 1); // minus header
 
     // try to also capture package IDs from BASE sheet (used to list "Faltante" IDs, not just the count)
     let baseIds = null;
@@ -1515,8 +1485,8 @@
     }
 
     // records map from PLANIFICATION: id -> {status, facility, promiseEnd, rota}
-    const planRows = XLSX.utils.sheet_to_json(wb.Sheets[planSheetName], {header:1, raw:true, defval:null});
-    if(planRows.length < 1) throw new Error('Aba PLANIFICATION está vazia.');
+    const planRows = getSheetRows(wb, planSheetName);
+    if(planRows.length < 1) throw new Error('Aba "' + planSheetName + '" está vazia.');
     const header = planRows[0];
     const idIdx = findHeaderIndex(header, ['unit_id']);
     const statusIdx = findHeaderIndex(header, ['status']);
@@ -1524,8 +1494,8 @@
     const promiseEndIdx = findHeaderIndex(header, ['promise_date_end']);
     const rotaIdx = findHeaderIndex(header, ['n.º rota', 'numero rota', 'n° rota', 'rota', 'route_id', 'route']);
     const estArrivalIdx = findHeaderIndex(header, ['estimated_arrival', 'estimated arrival', 'horário estimado chegada', 'horario estimado chegada', 'eta']);
-    if(idIdx === -1) throw new Error('Não encontrei a coluna "unit_id" na aba PLANIFICATION.');
-    if(statusIdx === -1) throw new Error('Não encontrei a coluna "status" na aba PLANIFICATION.');
+    if(idIdx === -1) throw new Error('Não encontrei a coluna "unit_id" na aba "' + planSheetName + '".');
+    if(statusIdx === -1) throw new Error('Não encontrei a coluna "status" na aba "' + planSheetName + '".');
 
     function parseTimeValue(v){
       if(v === null || v === undefined || v === '') return null;
@@ -1592,13 +1562,16 @@
     const statusMap = new Map();
     records.forEach((rec, id) => statusMap.set(id, rec.status));
 
-    return { statusMap, records, totalGeral, baseIds, arrivalByOrigin, estArrivalColumnFound: estArrivalIdx !== -1, facilityColumnFound: facilityIdx !== -1, planHeaderRaw: header, formatDetected: 'Formato 1 (BASE + PLANIFICATION)' };
+    // sem aba BASE: total geral = pacotes da planification
+    if(!baseSheetName || totalGeral === 0) totalGeral = records.size;
+
+    return { statusMap, records, totalGeral, baseIds, arrivalByOrigin, estArrivalColumnFound: estArrivalIdx !== -1, facilityColumnFound: facilityIdx !== -1, planHeaderRaw: header, formatDetected: 'Formato 1 (' + (baseSheetName ? baseSheetName + ' + ' : '') + planSheetName + ')' };
   }
 
   // ---------- Formato 2: aba única "Planification" (RTG_UNIT_EXTERNAL_ID / STATUS_ATUAL / SUBSTATUS_ATUAL / ORIGEM / OTIMIZADO ...) ----------
   function parseFormat2(wb, planSheetName, rowsParam, headerParam){
-    const rows = rowsParam || XLSX.utils.sheet_to_json(wb.Sheets[planSheetName], {header:1, raw:true, defval:null});
-    if(rows.length < 1) throw new Error('Aba "Planification" está vazia.');
+    const rows = rowsParam || getSheetRows(wb, planSheetName);
+    if(rows.length < 1) throw new Error('Aba "' + planSheetName + '" está vazia.');
     const header = headerParam || rows[0];
 
     const idIdx = findHeaderIndex(header, ['rtg_unit_external_id']);
@@ -1650,7 +1623,7 @@
       estArrivalColumnFound: false,
       facilityColumnFound: facilityIdx !== -1,
       planHeaderRaw: header,
-      formatDetected: 'Formato 2 (Planification)'
+      formatDetected: 'Formato 2 (' + planSheetName + ')'
     };
   }
 
@@ -2438,61 +2411,51 @@
   const dropBase2 = document.getElementById('dropBase2');
 
   wireDrop(dropBase1, document.getElementById('fileBase1'), document.getElementById('statusBase1'), (file)=>{
-    dropBase1._setStatus('lendo... (planilha grande pode levar alguns segundos)', false);
-    localGen.base1++;
-    savingNow.base1 = true; // bloqueia o refresh automático desde já
+    dropBase1._setStatus('lendo...', false);
     const reader = new FileReader();
     reader.onload = (e)=>{
-      // setTimeout deixa a tela mostrar "lendo..." antes de travar processando o .xlsx
-      setTimeout(()=>{ try{
+      try{
         base1Data = parseBase1(e.target.result);
-        dropBase1._setStatus(base1StatusText(file.name, ' · salvando no banco...'), true);
+        dropBase1._setStatus(file.name + ' · ' + fmt(base1Data.totalGeral) + ' pacotes · ' + (base1Data.formatDetected || ''), true);
         compute();
         renderChegadaTab();
-        saveBase1ToStorage(file.name);
+        saveBase1ToStorage(e.target.result, file.name);
       }catch(err){
-        savingNow.base1 = false;
         dropBase1._setStatus('erro ao ler arquivo', false);
         showError('Base estrutura: ' + err.message);
-      } }, 30);
+      }
     };
-    reader.onerror = ()=>{ savingNow.base1 = false; showError('Não consegui ler o arquivo da base estrutura.'); };
+    reader.onerror = ()=>{ showError('Não consegui ler o arquivo da base estrutura.'); };
     reader.readAsArrayBuffer(file);
   });
 
   wireDrop(dropBase2, document.getElementById('fileBase2'), document.getElementById('statusBase2'), (file)=>{
     dropBase2._setStatus('lendo...', false);
-    localGen.base2++;
-    savingNow.base2 = true;
     const reader = new FileReader();
     reader.onload = (e)=>{
       try{
         base2Rows = parseBase2(e.target.result);
-        dropBase2._setStatus(file.name + ' · ' + fmt(base2Rows.length) + ' linhas · salvando no banco...', true);
+        dropBase2._setStatus(file.name + ' · ' + fmt(base2Rows.length) + ' linhas', true);
         compute();
         saveBase2ToStorage(e.target.result, file.name);
       }catch(err){
-        savingNow.base2 = false;
         dropBase2._setStatus('erro ao ler arquivo', false);
         showError('Base faltantes: ' + err.message);
       }
     };
-    reader.onerror = ()=>{ savingNow.base2 = false; showError('Não consegui ler o arquivo da base faltantes.'); };
+    reader.onerror = ()=>{ showError('Não consegui ler o arquivo da base faltantes.'); };
     reader.readAsText(file, 'utf-8');
   });
 
   document.getElementById('btnClearSaved').addEventListener('click', async ()=>{
     if(!confirm('Isso remove as bases salvas no banco de dados (afeta todos os locais onde este painel é aberto). Deseja continuar?')) return;
     try{
-      const { data: row1 } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave','base1').maybeSingle();
       const { error } = await supabaseClient
         .from(SUPABASE_TABLE)
         .delete()
         .in('chave', ['base1', 'base2', 'totalGeralManual']);
       if(error) throw error;
-      const paths = [LEGACY_BASE1_PATH];
-      if(row1 && row1.conteudo) paths.push(row1.conteudo);
-      await supabaseClient.storage.from(STORAGE_BUCKET).remove(paths);
+      await supabaseClient.storage.from(STORAGE_BUCKET).remove([BASE1_STORAGE_PATH]);
     }catch(err){
       showError('Não consegui limpar os dados salvos: ' + (err.message || err));
       return;
@@ -2509,13 +2472,7 @@
     const icon = document.getElementById('refreshIcon');
     if(showSpinner){ btn.disabled = true; icon.classList.add('spinning'); }
     try{
-      const changed = await loadSavedData();
-      setSyncStatus((changed ? '☁️ dados novos recebidos às ' : '☁️ sincronizado às ') + hhmm(), 'ok');
-      if(errorBox.dataset.kind === 'sync') clearError();
-    }catch(err){
-      console.error('Falha ao buscar dados do banco:', err);
-      setSyncStatus('⚠️ sem conexão com o banco (' + hhmm() + ')', 'err');
-      if(showSpinner || errorBox.style.display === 'none') showError('Não consegui buscar os dados do banco: ' + errText(err), 'sync');
+      await loadSavedData();
     }finally{
       isRefreshing = false;
       if(showSpinner){ icon.classList.remove('spinning'); btn.disabled = false; }
@@ -2563,14 +2520,12 @@
 
   document.getElementById('btnRefreshData').addEventListener('click', ()=> refreshData(true));
 
-  // confere o banco sozinho a cada 20s (consulta leve: só baixa se alguém subiu base nova)
-  setInterval(()=> refreshData(false), SYNC_INTERVAL_MS);
-  // ao voltar pra aba do navegador, confere na hora
-  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshData(false); });
+  // busca dados novos sozinho a cada 45s (sem precisar clicar em nada); usa o
+  // spinner "silencioso" pra não ficar piscando o botão o tempo todo
+  setInterval(()=> refreshData(false), 45000);
 
   // ---------- carregar dados salvos do banco de dados ao abrir o painel ----------
-  setSyncStatus('☁️ conectando ao banco...', 'busy');
-  refreshData(true);
+  loadSavedData();
 </script>
 
 </body>
