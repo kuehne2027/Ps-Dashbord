@@ -1128,6 +1128,7 @@
           <span class="d1-badge ok">com movimentação: <b id="d1ComMov">0</b></span>
           <span class="d1-badge ok">com descrição: <b id="d1ComDesc">0</b></span>
           <span class="d1-badge warn">pendentes: <b id="d1Pend">0</b></span>
+          <span class="d1-badge ok" title="saíram da lista porque o sistema mostrou No carrinho ou Pronto pra rota (localizado e processado)">saíram do D-1: <b id="d1Res">0</b></span>
           <span class="d1-badge" id="d1SaveState">—</span>
         </div>
       </div>
@@ -1146,6 +1147,7 @@
             <label>Pacote<select id="d1PId" class="d1-filter" style="min-width:0;width:100%;"></select></label>
             <label>Última bipagem<input id="d1PDt" type="datetime-local" class="d1-filter" style="min-width:0;width:100%;"></label>
             <label>Quem bipou<input id="d1PNome" type="text" class="d1-filter" style="min-width:0;width:100%;" list="d1Nomes" placeholder="nome"></label>
+            <label>Status no sistema<input id="d1PSt" type="text" class="d1-filter" style="min-width:0;width:100%;" list="d1PStList" placeholder="status que aparece na página"><datalist id="d1PStList"></datalist></label>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
               <button class="export-btn" id="btnD1PSave" type="button" disabled><span class="export-icon">💾</span> Salvar (só se faltar algo)</button>
               <span class="export-hint" id="d1PHint"></span>
@@ -2767,7 +2769,44 @@
     return !/caminho/.test(loc);
   }
   function d1AllD1(){ return (lastMetricIds && lastMetricIds.d1) ? lastMetricIds.d1.slice() : []; }
-  function d1Ids(){ return d1AllD1(); }
+  function d1Ids(){ return d1AllD1().filter(id => d1Entrou(id) && !d1Resolved(id)); }
+  // ---- status do pacote lido da página colada do sistema ----
+  // res:true = pacote já saiu (despachado/entregue...) -> some da lista D-1
+  const D1_SYS_ST = [
+    { k:'No carrinho',     re:/(?:no|em|dentro\s+do)\s+carrinho|in[_\s]*cart\b/i, cls:'st', res:true },
+    { k:'Pronto pra rota', re:/pronto\s+(?:para|pra|p\/)?\s*(?:a\s+)?rota|ready[_\s]*for[_\s]*route|route[_\s]*ready/i, cls:'st', res:true },
+    { k:'Pra despachar',   re:/(?:para|pra|a)\s+despachar|ready[_\s]*to[_\s]*ship|staged/i, cls:'st' },
+    { k:'Despachado',      re:/despachad|expedid|dispatched|shipped/i, cls:'st' },
+    { k:'Sorting',         re:/sorting|triagem/i, cls:'srt' },
+    { k:'Buffered',        re:/buffered|em\s+buffer/i, cls:'buf' },
+    { k:'A caminho',       re:/caminho\s+(?:para|pra)\s+a\s+esta|on[_\s]way|em\s+tr[aâ]nsito|in[_\s]transit/i, cls:'way' },
+    { k:'Na estação',      re:/na\s+esta[cç][aã]o|at[_\s]station/i, cls:'' },
+    { k:'Não entregue',    re:/n[aã]o\s+entregue|not[_\s]delivered/i, cls:'' },
+    { k:'Entregue',        re:/(?<!n[aã]o\s)entregue|(?<!not[_\s])delivered/i, cls:'st' },
+    { k:'Devolvido',       re:/devolvid|returned/i, cls:'' },
+    { k:'Extraviado',      re:/extraviad|\blost\b/i, cls:'' },
+    { k:'Avariado',        re:/avariad|danificad|damaged/i, cls:'' }
+  ];
+  // acha o tipo do status pelo texto (o texto salvo é exatamente o que veio da página)
+  function d1SysSt(txt){ txt = String(txt || ''); return D1_SYS_ST.find(x => x.k === txt) || D1_SYS_ST.find(x => x.re.test(txt)) || null; }
+  function d1Resolved(id){ const r = d1Data[id]; const s = r && r.st ? d1SysSt(r.st) : null; return !!(s && s.res); }
+  function d1FindStatus(text, li){
+    const lines = text.split(/\r?\n/);
+    // 1) "Status: xxx" explícito
+    for(const ln of lines){
+      const m = ln.match(/^\s*(?:status|situa[cç][aã]o|estado)(?:\s+atual)?\s*[:\-–]\s*(.+)$/i);
+      if(m){ const v = m[1].replace(/\s{2,}|\t/g,' ').trim(); if(v && !/^\d/.test(v)) return v.slice(0, 50); }
+    }
+    // 2) o status mais perto da última bipagem
+    let best = null, bestD = Infinity;
+    lines.forEach((ln, i) => {
+      const hit = D1_SYS_ST.find(x => x.re.test(ln));
+      if(!hit) return;
+      const d = li >= 0 ? Math.abs(i - li) : i;
+      if(d < bestD){ bestD = d; const mm = ln.match(hit.re); best = mm ? mm[0].trim().replace(/^\w/, c => c.toUpperCase()) : hit.k; }
+    });
+    return best || '';
+  }
   function d1SetState(t){ const el = document.getElementById('d1SaveState'); if(el) el.textContent = t; }
 
   function d1MergeRemote(remote){
@@ -2872,6 +2911,7 @@
     document.getElementById('d1ComMov').textContent = fmt(comMov);
     document.getElementById('d1ComDesc').textContent = fmt(comDesc);
     document.getElementById('d1Pend').textContent = fmt(pend);
+    document.getElementById('d1Res').textContent = fmt(d1AllD1().filter(d1Resolved).length);
     renderD1Report();
   }
 
@@ -2902,6 +2942,10 @@
   // status do pacote na base do ciclo (planification): "at_station|sorting" -> "Sorting"
   const D1_ST_LABEL = { sorting:'Sorting', buffered:'Buffered', at_station:'Na estação', on_way:'A caminho', in_transit:'Em trânsito', delivered:'Entregue', picked:'Separado', staged:'Staged', ready_to_ship:'Pronto p/ envio', shipped:'Expedido', not_delivered:'Não entregue', returned:'Devolvido' };
   function d1Status(id){
+    // o report mostra só o status que veio da página colada do sistema
+    const stTxt = d1Data[id] && d1Data[id].st ? String(d1Data[id].st) : '';
+    if(stTxt){ const sys = d1SysSt(stTxt); return { label: stTxt, cls: sys ? sys.cls : '', raw: stTxt, sys: true }; }
+    return { label:'', cls:'' };
     const raw = (base1Data && base1Data.statusMap && base1Data.statusMap.get(id)) || '';
     if(!raw) return { label:'', cls:'' };
     const [main, sub] = String(raw).split('|');
@@ -3250,8 +3294,8 @@
     return '';
   }
   function d1ParsePage(text){
-    const res = { id:'', dt:'', nome:'' };
-    const ids = d1Ids();
+    const res = { id:'', dt:'', nome:'', st:'' };
+    const ids = d1AllD1();
     const set = new Set(ids);
     const nums = text.match(/\d{10,13}/g) || [];
     res.id = nums.find(n => set.has(n)) || '';
@@ -3267,18 +3311,24 @@
       // login no formato nome.sobrenome na própria linha
       const login = (own.match(/(?:^|\s)([a-z]{2,}[._][a-z]{2,}(?:[._][a-z]{2,})?)(?=\s|$)/i) || [])[1] || '';
       res.nome = d1LooksName(own) || d1FindName(lines, li) || login;
+      res.st = d1FindStatus(text, li);
+    } else {
+      res.st = d1FindStatus(text, -1);
     }
     return res;
   }
   function d1FillPasteIdSelect(sel){
     const el = document.getElementById('d1PId');
-    const ids = d1Ids();
+    const ids = d1AllD1();
     el.innerHTML = '<option value="">— escolha o pacote —</option>' + ids.map(id => {
       const r = d1Data[id] || {};
-      return '<option value="' + d1Esc(id) + '">' + d1Esc(id) + (r.dt && r.nome ? '  ✓' : '') + '</option>';
+      return '<option value="' + d1Esc(id) + '">' + d1Esc(id) + (d1Resolved(id) ? '  (saiu: ' + d1Esc(r.st) + ')' : (r.dt && r.nome ? '  ✓' : '')) + '</option>';
     }).join('');
     if(sel) el.value = sel;
-    document.getElementById('btnD1NextId').disabled = !ids.length;
+    const stEl = document.getElementById('d1PSt');
+    const stList = document.getElementById('d1PStList');
+    if(stList && !stList.options.length) stList.innerHTML = D1_SYS_ST.map(x => '<option value="' + d1Esc(x.k) + '">' + (x.res ? 'sai do D-1' : '') + '</option>').join('');
+    document.getElementById('btnD1NextId').disabled = !d1Ids().length;
   }
   function d1NextPending(after){
     const ids = d1Ids();
@@ -3295,9 +3345,11 @@
     d1FillPasteIdSelect(r.id || cur);
     const dtEl = document.getElementById('d1PDt'), nmEl = document.getElementById('d1PNome');
     dtEl.value = r.dt || ''; nmEl.value = r.nome ? d1TitleCase(r.nome) : '';
-    d1MarkFound(document.getElementById('d1PId'), r.id); d1MarkFound(dtEl, r.dt); d1MarkFound(nmEl, r.nome);
+    const stEl = document.getElementById('d1PSt');
+    stEl.value = r.st || '';
+    d1MarkFound(document.getElementById('d1PId'), r.id); d1MarkFound(dtEl, r.dt); d1MarkFound(nmEl, r.nome); d1MarkFound(stEl, r.st);
     const miss = [!r.id && !cur ? 'ID' : '', !r.dt ? 'data/hora' : '', !r.nome ? 'nome' : ''].filter(Boolean);
-    document.getElementById('d1PHint').textContent = miss.length ? 'não achei: ' + miss.join(', ') + ' — confira e complete' : 'achei tudo ✓ confira e salve';
+    document.getElementById('d1PHint').textContent = miss.length ? 'não achei: ' + miss.join(', ') + ' — confira e complete' : ('achei tudo ✓' + (r.st ? ' · status: ' + r.st : ' · status não identificado') + ' — confira e salve');
     document.getElementById('btnD1PSave').disabled = false;
     // achou tudo: salva sozinho e já copia o próximo ID
     if(auto && !miss.length && document.getElementById('d1PId').value){
@@ -3315,8 +3367,8 @@
     d1FillPasteIdSelect(id);
     d1Copy(id, 'd1PHint', 'ID ' + id + ' copiado — cole na busca do sistema');
     document.getElementById('d1PasteBox').value = '';
-    ['d1PDt','d1PNome','d1PId'].forEach(x => d1MarkFound(document.getElementById(x), false));
-    document.getElementById('d1PDt').value = ''; document.getElementById('d1PNome').value = '';
+    ['d1PDt','d1PNome','d1PId','d1PSt'].forEach(x => d1MarkFound(document.getElementById(x), false));
+    document.getElementById('d1PDt').value = ''; document.getElementById('d1PNome').value = ''; document.getElementById('d1PSt').value = '';
   });
   document.getElementById('btnD1PSave').addEventListener('click', ()=>{
     const id = document.getElementById('d1PId').value;
@@ -3325,11 +3377,14 @@
     if(!id){ document.getElementById('d1PHint').textContent = 'escolha o pacote'; return; }
     if(dt) d1SetField(id, 'dt', dt);
     if(nome) d1SetField(id, 'nome', nome);
+    const st = document.getElementById('d1PSt').value.trim();
+    if(st || (d1Data[id] && d1Data[id].st)) d1SetField(id, 'st', st);
+    const saiu = d1Resolved(id);
     renderD1Tab();
     // já prepara o próximo e mostra o que foi salvo
     document.getElementById('btnD1NextId').click();
     const nx = document.getElementById('d1PId').value;
-    setTimeout(()=>{ document.getElementById('d1PHint').textContent = '✓ ' + id + ' salvo (' + d1FmtDt(dt) + ' · ' + d1TitleCase(nome) + ')' + (nx ? ' — próximo ID ' + nx + ' já copiado' : ' — todos feitos 🎉'); }, 150);
+    setTimeout(()=>{ document.getElementById('d1PHint').textContent = '✓ ' + id + ' salvo (' + d1FmtDt(dt) + ' · ' + d1TitleCase(nome) + (st ? ' · ' + st : '') + ')' + (saiu ? ' — saiu do D-1' : '') + (nx ? ' — próximo ID ' + nx + ' já copiado' : ' — todos feitos 🎉'); }, 150);
   });
 
   // atualiza o que os outros preencheram junto com a busca automática de 45s
