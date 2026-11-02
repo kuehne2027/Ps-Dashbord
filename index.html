@@ -3263,7 +3263,7 @@
     while((m = r3.exec(text))) push(m.index, m[3], D1_MESES[m[2].toLowerCase()], m[1], m[4], m[5]);
     return out;
   }
-  const D1_NAME_STOP = /(esta[cç][aã]o|pacote|rota|status|sorting|buffer|inbound|outbound|entregue|carrinho|gaiola|transfer|caminho|recebid|processad|hist[oó]rico|movimenta|localiza|svc|srj|facility|shipment|data|hora|detalhe|volumoso|usu[aá]rio|operador|evento|a[cç][aã]o|tipo|origem|destino|motivo)/i;
+  const D1_NAME_STOP = /(esta[cç][aã]o|pacote|rota|status|sorting|buffer|inbound|outbound|entregue|carrinho|gaiola|transfer|caminho|recebid|processad|hist[oó]rico|movimenta|localiza|svc|srj|facility|shipment|data|hora|escaneado|auditor|transportador|classifica|etiquetagem|invent[aá]rio|aduana|atualiza|observa|detalhe|volumoso|usu[aá]rio|operador|evento|a[cç][aã]o|tipo|origem|destino|motivo)/i;
   function d1LooksName(line){
     const t = line.replace(/^[\s•·:\-–|]+|[\s•·:\-–|]+$/g,'').trim();
     if(!t || t.length < 5 || t.length > 60 || /\d/.test(t) || D1_NAME_STOP.test(t)) return '';
@@ -3293,7 +3293,130 @@
     }
     return '';
   }
+  // ---- leitor específico da página "Gestão de pacotes" (envios.adminml.com) ----
+  const D1_GP_LABELS = ['data e hora','escaneado por','área correspondente','area correspondente','situação','situacao','última atualização','ultima atualizacao','observação','observacao','transportador','auditor','classificação','classificacao','carrinho','última etiquetagem','ultima etiquetagem','ver histórico completo','inventário','inventario','aduana','auditoria de carrinhos','dados da rota','dados do comprador','endereço de entrega','dados do pacote','histórico do pacote','etiquetagem','reimprimir'];
+  function d1GpIsLabel(l){ const t = l.toLowerCase(); return D1_GP_LABELS.some(x => t.startsWith(x)); }
+  // datas da página: "01 de novembro, 16:07:34h" · "01/nov 09:15h" · "29/out 16:54 hs" · "01/11/2026 16:07"
+  function d1GpDate(s){
+    if(!s) return null;
+    s = String(s);
+    let d, mo, y, h, mi, m;
+    const re1 = /(\d{1,2})\s*(?:\/|\s+de\s+|\s+)\s*([a-zç]{3})[a-zç]*\.?(?:\s*(?:\/|de)\s*(\d{4}|\d{2}))?[\s,·|-]*(?:às|as)?\s*(\d{1,2})[:h](\d{2})/gi;
+    while((m = re1.exec(s))){ const k = D1_MESES[m[2].toLowerCase()]; if(k){ d=+m[1]; mo=k; y=m[3]; h=+m[4]; mi=+m[5]; break; } }
+    if(!mo){
+      m = s.match(/(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{2,4}))?[\s,·|-]*(?:às|as)?\s*(\d{1,2})[:h](\d{2})/);
+      if(!m) return null;
+      d=+m[1]; mo=+m[2]; y=m[3]; h=+m[4]; mi=+m[5];
+    }
+    if(!mo || mo>12 || d<1 || d>31 || h>23 || mi>59) return null;
+    const now = new Date(), semAno = !y;
+    y = y ? (+y < 100 ? 2000 + +y : +y) : now.getFullYear();
+    if(semAno && mo > now.getMonth() + 2) y--; // dezembro visto em janeiro
+    return { t: new Date(y, mo-1, d, h, mi).getTime(), v: y + '-' + d1Pad(mo) + '-' + d1Pad(d) + 'T' + d1Pad(h) + ':' + d1Pad(mi) };
+  }
+  // parece nome de pessoa? (2+ palavras, só letras, não é rótulo nem valor conhecido da página)
+  const D1_GP_NOTNAME = /^(sorting|buffer|verificad|n[aã]o verificad|pendente|sim|n[aã]o|ok|para despachar|no n[oó]|caminho|ver |cancelar|salvar)/i;
+  function d1GpName(v){
+    v = String(v || '').replace(/\s+/g,' ').trim();
+    if(!v || d1GpIsLabel(v) || D1_GP_NOTNAME.test(v) || /\d/.test(v) || D1_SYS_ST.some(x => x.re.test(v))) return '';
+    const w = v.split(' ');
+    if(w.length < 2 || w.length > 8 || !w.every(x => /^[A-Za-zÀ-ÿ'.]+$/.test(x))) return '';
+    return v;
+  }
+  function d1GpLabelOf(tok){ const t = tok.toLowerCase().replace(/:$/,'').trim(); return D1_GP_LABELS.find(x => t === x) || ''; }
+  function d1ParseGestao(text){
+    if(!/hist[oó]rico de processos do sc|atualiza[cç][oõ]es de status|escaneado por/i.test(text)) return null;
+    const lines = text.split(/\r?\n/).map(s => s.replace(/ /g,' ').trim()).filter(Boolean);
+    const res = { id:'', dt:'', nome:'', st:'', gp:true };
+    const ids = new Set(d1AllD1());
+    const idm = text.match(/ID do envio\s*[:\t ]*\r?\n?\s*(\d{10,13})/i);
+    const nums = text.match(/\d{10,13}/g) || [];
+    res.id = nums.find(n => ids.has(n)) || (idm ? idm[1] : '');
+    // status atual (linha "Status" + valor na mesma linha ou na seguinte)
+    for(let i=0;i<lines.length;i++){
+      const m = lines[i].match(/^status\s*[:\t]?\s*(.*)$/i);
+      if(!m) continue;
+      const v = (m[1] || lines[i+1] || '').trim();
+      if(v && !/^\d/.test(v) && !d1GpIsLabel(v)){ res.st = v.slice(0,50); break; }
+    }
+    // separa as seções do "Histórico de processos do SC"
+    let iHist = lines.findIndex(l => /^hist[oó]rico do pacote|^atualiza[cç][oõ]es de status/i.test(l));
+    if(iHist < 0) iHist = lines.length;
+    const secs = []; let cur = null;
+    const SEC = [[/^etiquetagem/i,'Etiquetagem'],[/^invent[aá]rio/i,'Inventário'],[/^aduana\b/i,'Aduana'],[/^auditoria de carrinhos/i,'Auditoria de carrinho'],[/^(dados da rota|dados do comprador|endere[cç]o de entrega|dados do pacote|reimprimir)/i,'']];
+    for(let i=0;i<iHist;i++){
+      const hit = SEC.find(x => x[0].test(lines[i]));
+      if(hit){ cur = hit[1] ? { sec:hit[1], toks:[] } : null; if(cur) secs.push(cur); continue; }
+      if(!cur) continue;
+      lines[i].split(/\t+/).map(x => x.trim()).filter(Boolean).forEach(tok => {
+        if(/^(ver hist[oó]rico completo|[uú]ltima etiquetagem)$/i.test(tok)) return;
+        // "Escaneado por: Fulano" na mesma célula
+        const lab = D1_GP_LABELS.find(x => tok.toLowerCase().startsWith(x + ':'));
+        if(lab){ cur.toks.push({ lab }); const v = tok.slice(lab.length + 1).trim(); if(v) cur.toks.push({ v }); return; }
+        const l2 = d1GpLabelOf(tok);
+        cur.toks.push(l2 ? { lab:l2 } : { v:tok });
+      });
+    }
+    const evs = secs.map(s => {
+      const labs = s.toks.filter(t => t.lab).map(t => t.lab);
+      const vals = s.toks.filter(t => t.v).map(t => t.v);
+      let dt = null, nome = '';
+      // 1) pareia rótulo ↔ valor na ordem (serve pra rótulo-valor-rótulo-valor e pra linha de rótulos + linha de valores)
+      labs.forEach((lb, k) => {
+        const v = vals[k]; if(!v) return;
+        if(/^(data e hora|[uú]ltima atualiza)/.test(lb)){ const d = d1GpDate(v); if(d) dt = d; }
+        if(/^(escaneado por|auditor)$/.test(lb)){ const n = d1GpName(v); if(n) nome = n; }
+      });
+      // 2) se o pareamento não bateu, procura pelo formato
+      if(!dt){ for(const v of vals){ const d = d1GpDate(v); if(d && (!dt || d.t > dt.t)) dt = d; } }
+      if(!nome && labs.some(lb => /^(escaneado por|auditor)$/.test(lb))){
+        for(const v of vals){ const n = d1GpName(v); if(n){ nome = n; break; } }
+      }
+      return { sec:s.sec, dt, nome };
+    }).filter(e => e.dt || e.nome);
+    // histórico de status: "29/out 16:54 hs | Para despachar"
+    const hist = [];
+    for(let i=iHist;i<lines.length;i++){
+      const l = lines[i].replace(/^[*•\-]\s*/, '');
+      if(!/\|/.test(l)) continue;
+      const d = d1GpDate(l); if(!d) continue;
+      let st = l.split('|').slice(1).join('|').trim();
+      if(!st && lines[i+1]) st = lines[i+1].trim();
+      hist.push({ dt:d, st, i });
+    }
+    const lastEv = evs.filter(e => e.dt).sort((a,b) => b.dt.t - a.dt.t)[0] || null;
+    const lastH = hist.slice().sort((a,b) => b.dt.t - a.dt.t)[0] || null;
+    if(!res.st && lastH) res.st = lastH.st;
+    res.evs = evs; res.hist = hist;
+    if(lastH && (!lastEv || lastH.dt.t > lastEv.dt.t)){
+      // a última movimentação é do Histórico do pacote: o nome só aparece em "Ver atualização"
+      res.dt = lastH.dt.v; res.onde = 'Histórico do pacote · ' + lastH.st; res.precisaNome = true;
+      // se o "Ver atualização" já estava aberto quando copiou, o nome vem junto logo abaixo do item
+      const nx = hist.filter(h => h.i > lastH.i).map(h => h.i);
+      const fim = nx.length ? Math.min(...nx) : lines.length;
+      const bloco = lines.slice(lastH.i + 1, fim).filter(l => l !== lastH.st && !/^ver atualiza/i.test(l)).join('\n');
+      const n = bloco ? d1NameFromUpdate(bloco) : '';
+      if(n){ res.nome = n; res.precisaNome = false; }
+    } else if(lastEv){
+      res.dt = lastEv.dt.v; res.onde = lastEv.sec; res.nome = lastEv.nome;
+      if(!lastEv.nome) res.precisaNome = true;
+    }
+    return res;
+  }
+  // texto colado do "Ver atualização": acha o nome de quem bipou
+  function d1NameFromUpdate(text){
+    const lines = text.split(/\r?\n/).map(s => s.replace(/ /g,' ').trim()).filter(Boolean);
+    const lab = /^(?:escaneado por|usu[aá]rio|operador|respons[aá]vel|colaborador|realizad[oa] por|feito por|auditor|nome)\s*[:\-–\t]?\s*(.*)$/i;
+    for(let i=0;i<lines.length;i++){
+      const m = lines[i].match(lab);
+      if(m){ const v = d1GpName(m[1]) || d1GpName(lines[i+1]) || (/^[a-z]{2,}[._][a-z]{2,}/i.test(m[1]||'') ? m[1].trim() : ''); if(v) return v; }
+    }
+    for(const l of lines){ for(const part of l.split(/\t/)){ const n = d1GpName(part); if(n) return n; } }
+    return '';
+  }
   function d1ParsePage(text){
+    const gp = d1ParseGestao(text);
+    if(gp) return gp;
     const res = { id:'', dt:'', nome:'', st:'' };
     const ids = d1AllD1();
     const set = new Set(ids);
@@ -3337,9 +3460,30 @@
     return '';
   }
   function d1MarkFound(el, ok){ el.classList.toggle('found', !!ok); }
+  // pacote esperando o nome do "Ver atualização" (última movimentação veio do Histórico do pacote)
+  window.__d1Pend = null;
+  function d1PendSave(nome, auto){
+    const p = window.__d1Pend, nmEl = document.getElementById('d1PNome');
+    if(!p || !nome) return false;
+    nmEl.value = d1TitleCase(nome); d1MarkFound(nmEl, true);
+    if(document.getElementById('d1PId').value !== p.id) d1FillPasteIdSelect(p.id);
+    if(!document.getElementById('d1PDt').value) document.getElementById('d1PDt').value = p.dt;
+    window.__d1Pend = null;
+    document.getElementById('d1PHint').textContent = 'nome do Ver atualização ✓ — ' + d1TitleCase(nome);
+    if(auto){ document.getElementById('btnD1PSave').click(); document.getElementById('d1PasteBox').focus(); }
+    return true;
+  }
   function d1ApplyPaste(auto){
     const text = document.getElementById('d1PasteBox').value;
     if(!text.trim()) return;
+    // 2º passo: colou só o conteúdo do "Ver atualização" → pega o nome e salva
+    if(window.__d1Pend && !d1ParseGestao(text)){
+      const n = d1NameFromUpdate(text);
+      if(d1PendSave(n, auto)){ document.getElementById('d1PasteBox').value = ''; return; }
+      document.getElementById('d1PHint').textContent = 'não achei o nome nesse texto — digite ou cole só o nome no campo "Quem bipou"';
+      document.getElementById('d1PNome').focus();
+      return;
+    }
     const r = d1ParsePage(text);
     const cur = document.getElementById('d1PId').value;
     d1FillPasteIdSelect(r.id || cur);
@@ -3349,7 +3493,16 @@
     stEl.value = r.st || '';
     d1MarkFound(document.getElementById('d1PId'), r.id); d1MarkFound(dtEl, r.dt); d1MarkFound(nmEl, r.nome); d1MarkFound(stEl, r.st);
     const miss = [!r.id && !cur ? 'ID' : '', !r.dt ? 'data/hora' : '', !r.nome ? 'nome' : ''].filter(Boolean);
-    document.getElementById('d1PHint').textContent = miss.length ? 'não achei: ' + miss.join(', ') + ' — confira e complete' : ('achei tudo ✓' + (r.st ? ' · status: ' + r.st : ' · status não identificado') + ' — confira e salve');
+    window.__d1Pend = (r.gp && r.precisaNome && r.dt) ? { id: r.id || cur, dt: r.dt } : null;
+    if(window.__d1Pend){
+      const mp = d1MovParts(r.dt);
+      document.getElementById('d1PHint').textContent = '⚠ última movimentação ' + mp.date + ' ' + mp.time + ' · ' + (r.onde || '') + ' — abra "Ver atualização" no sistema, copie o nome e cole aqui ou no campo "Quem bipou"';
+      document.getElementById('btnD1PSave').disabled = false;
+      document.getElementById('d1PasteBox').value = '';
+      document.getElementById('d1PasteBox').focus();
+      return; // não salva sozinho: falta o nome
+    }
+    document.getElementById('d1PHint').textContent = miss.length ? 'não achei: ' + miss.join(', ') + ' — confira e complete' : ('achei tudo ✓' + (r.onde ? ' · ' + r.onde : '') + (r.st ? ' · status: ' + r.st : ' · status não identificado') + ' — confira e salve');
     document.getElementById('btnD1PSave').disabled = false;
     // achou tudo: salva sozinho e já copia o próximo ID
     if(auto && !miss.length && document.getElementById('d1PId').value){
@@ -3360,6 +3513,12 @@
     (miss.length ? (miss.includes('nome') ? nmEl : dtEl) : document.getElementById('btnD1PSave')).focus();
   }
   document.getElementById('d1PasteBox').addEventListener('paste', ()=> setTimeout(()=> d1ApplyPaste(true), 30));
+  // colou o nome direto no campo "Quem bipou" com um pacote esperando nome → salva
+  document.getElementById('d1PNome').addEventListener('paste', ()=> setTimeout(()=>{
+    const el = document.getElementById('d1PNome');
+    const n = d1NameFromUpdate(el.value) || el.value.trim();
+    if(window.__d1Pend && n) d1PendSave(n, true); else if(n) el.value = d1TitleCase(n);
+  }, 30));
   document.getElementById('d1PasteBox').addEventListener('input', ()=>{ clearTimeout(window.__d1pt); window.__d1pt = setTimeout(()=> d1ApplyPaste(false), 400); });
   document.getElementById('btnD1NextId').addEventListener('click', ()=>{
     const id = d1NextPending(document.getElementById('d1PId').value);
@@ -3369,12 +3528,14 @@
     document.getElementById('d1PasteBox').value = '';
     ['d1PDt','d1PNome','d1PId','d1PSt'].forEach(x => d1MarkFound(document.getElementById(x), false));
     document.getElementById('d1PDt').value = ''; document.getElementById('d1PNome').value = ''; document.getElementById('d1PSt').value = '';
+    window.__d1Pend = null;
   });
   document.getElementById('btnD1PSave').addEventListener('click', ()=>{
     const id = document.getElementById('d1PId').value;
     const dt = document.getElementById('d1PDt').value;
     const nome = document.getElementById('d1PNome').value.trim();
     if(!id){ document.getElementById('d1PHint').textContent = 'escolha o pacote'; return; }
+    window.__d1Pend = null;
     if(dt) d1SetField(id, 'dt', dt);
     if(nome) d1SetField(id, 'nome', nome);
     const st = document.getElementById('d1PSt').value.trim();
