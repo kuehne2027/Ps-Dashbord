@@ -760,6 +760,8 @@
   .d1-table .copy-id{ border:0; background:none; cursor:pointer; font-size:13px; padding:2px 4px; opacity:.6; }
   .d1-table .copy-id:hover{ opacity:1; }
   .d1-table tr.done td{ background:rgba(22,163,74,0.05); }
+  .d1-table tr.flash td{ animation:d1flash 1.6s ease-out; }
+  @keyframes d1flash{ 0%{ background:#BBF7D0; } 100%{ background:transparent; } }
   .d1-import{ display:none; margin:0 0 14px; padding:14px; background:#fff; border:1px dashed #0B5FA5; border-radius:10px; }
   .d1-import textarea{ width:100%; box-sizing:border-box; min-height:120px; font-family:var(--mono, 'JetBrains Mono', monospace); font-size:12px; padding:8px; border:1px solid #D7E0EE; border-radius:6px; }
   .d1-import .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
@@ -802,6 +804,11 @@
   @media (max-width:900px){ .d1-paste-grid{ grid-template-columns:1fr; } }
   .d1-paste textarea{ width:100%; box-sizing:border-box; min-height:150px; font-family:var(--mono, monospace); font-size:11.5px; padding:10px; border:1.5px dashed #9FB7D6; border-radius:10px; background:#F8FAFD; resize:vertical; }
   .d1-paste textarea:focus{ outline:none; border-color:#0B5FA5; background:#fff; }
+  .d1-movs{ display:none; flex-wrap:wrap; gap:6px; align-items:center; margin-top:10px; }
+  .d1-movs-lbl{ font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#5B6B85; margin-right:4px; }
+  .d1-mov{ font:inherit; font-size:12px; padding:5px 10px; border-radius:999px; border:1px solid #D7E0EE; background:#fff; color:#33415C; cursor:pointer; }
+  .d1-mov:hover{ border-color:#0B5FA5; }
+  .d1-mov.sel{ background:#0B5FA5; border-color:#0B5FA5; color:#fff; }
   .d1-paste-res{ display:flex; flex-direction:column; gap:8px; }
   .d1-paste-res label{ display:flex; flex-direction:column; gap:3px; font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#5B6B85; }
   .d1-paste-res .found{ border-color:#22C55E !important; background:#F0FDF4; }
@@ -820,6 +827,18 @@
   .d1-pager .export-btn{ padding:6px 10px; }
   .fg-tr{ display:grid; grid-template-columns:124px 220px 96px 120px 110px minmax(0,1fr); gap:16px; align-items:center; padding:11px 18px; border-top:1px solid #EEF2F7; }
   .fg-th{ border-top:0; background:#FAFBFD; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#64748B; padding:12px 18px; }
+  .fg-tr{ position:relative; }
+  .fg-edit-btn{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:28px; height:28px; border-radius:8px; border:1px solid #D7E0EE; background:#fff; color:#0B5FA5; font-size:13px; cursor:pointer; opacity:.35; transition:opacity .15s; }
+  .fg-tr:hover .fg-edit-btn, .fg-tr.editing .fg-edit-btn{ opacity:1; }
+  .fg-edit-btn:hover{ border-color:#0B5FA5; background:#EAF2FB; }
+  .fg-tr.editing{ background:#F5F9FF; }
+  .fg-edit{ display:grid; grid-template-columns:200px 220px 170px minmax(0,1fr); gap:10px 12px; align-items:end; padding:12px 18px 14px; background:#F5F9FF; border-top:1px dashed #BFDBFE; }
+  .fg-edit label{ display:flex; flex-direction:column; gap:3px; font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#5B6B85; }
+  .fg-edit input{ font:inherit; font-size:12.5px; font-weight:600; text-transform:none; letter-spacing:0; padding:7px 9px; border:1px solid #D7E0EE; border-radius:7px; background:#fff; color:#0B2545; }
+  .fg-edit input:focus{ outline:2px solid #0B5FA5; outline-offset:0; }
+  .fg-edit-btns{ grid-column:1 / -1; display:flex; gap:8px; flex-wrap:wrap; }
+  .fg-edit-btns .export-btn{ padding:7px 14px; font-size:12.5px; }
+  .fg-edit-btns .export-btn.primary{ background:#0B5FA5; border-color:#0B5FA5; color:#fff; }
   .fg-id{ font-family:var(--mono, 'JetBrains Mono', monospace); font-size:12.5px; font-weight:700; color:#0F1B2D; letter-spacing:-.01em; }
   .fg-desc{ font-size:13px; color:#1E293B; line-height:1.35; }
   .fg-desc.empty{ color:#94A3B8; font-style:italic; }
@@ -1129,6 +1148,7 @@
           <span class="d1-badge ok">com descrição: <b id="d1ComDesc">0</b></span>
           <span class="d1-badge warn">pendentes: <b id="d1Pend">0</b></span>
           <span class="d1-badge ok" title="saíram da lista porque o sistema mostrou No carrinho ou Pronto pra rota (localizado e processado)">saíram do D-1: <b id="d1Res">0</b></span>
+          <span class="d1-badge ok" id="d1ProcBadge" style="cursor:pointer;" title="classificados por você que a atualização dos faltantes mostrou como processados — clique pra copiar os IDs">processados após classificar: <b id="d1Proc">0</b></span>
           <span class="d1-badge" id="d1SaveState">—</span>
         </div>
       </div>
@@ -1137,10 +1157,11 @@
         <div class="d1-paste-head">
           <div>
             <div class="d1-paste-title">⚡ Consulta rápida — cole a página do sistema</div>
-            <div class="d1-paste-sub">1) clique em <b>Copiar próximo ID</b> e cole na busca do sistema · 2) na página do pacote aperte <b>Ctrl+A</b> e <b>Ctrl+C</b> · 3) clique no quadro abaixo e aperte <b>Ctrl+V</b>. Pronto: a data, a hora e quem bipou são preenchidos e salvos sozinhos, e o próximo ID já fica copiado.</div>
+            <div class="d1-paste-sub">1) clique em <b>Copiar próximo ID</b> e cole na busca do sistema · 2) na página do pacote aperte <b>Ctrl+A</b> e <b>Ctrl+C</b> · 3) clique no quadro abaixo e aperte <b>Ctrl+V</b>. Os campos ao lado são preenchidos pra você <b>conferir</b>. Se a última movimentação estiver errada, clique na certa na lista de movimentações. Depois aperte <b>Salvar</b> (ou Enter) — aí o próximo ID já fica copiado.</div>
           </div>
           <button class="export-btn" id="btnD1NextId" type="button" disabled><span class="export-icon">➡️</span> Copiar próximo ID</button>
         </div>
+        <div class="d1-movs" id="d1Movs"></div>
         <div class="d1-paste-grid">
           <textarea id="d1PasteBox" placeholder="Cole aqui (Ctrl+V) o conteúdo da página de consulta do pacote…"></textarea>
           <div class="d1-paste-res">
@@ -1149,7 +1170,7 @@
             <label>Quem bipou<input id="d1PNome" type="text" class="d1-filter" style="min-width:0;width:100%;" list="d1Nomes" placeholder="nome"></label>
             <label>Status no sistema<input id="d1PSt" type="text" class="d1-filter" style="min-width:0;width:100%;" list="d1PStList" placeholder="status que aparece na página"><datalist id="d1PStList"></datalist></label>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <button class="export-btn" id="btnD1PSave" type="button" disabled><span class="export-icon">💾</span> Salvar (só se faltar algo)</button>
+              <button class="export-btn" id="btnD1PSave" type="button" disabled><span class="export-icon">💾</span> Salvar (Enter)</button>
               <span class="export-hint" id="d1PHint"></span>
             </div>
           </div>
@@ -1160,7 +1181,13 @@
         <button class="export-btn" id="btnD1CopyLines" type="button" disabled><span class="export-icon">📄</span> Copiar IDs (um por linha)</button>
         <button class="export-btn" id="btnD1CopyQuery" type="button" disabled><span class="export-icon">🧾</span> Copiar IDs p/ query (separados por vírgula)</button>
         <button class="export-btn" id="btnD1Import" type="button" disabled><span class="export-icon">📥</span> Importar resultado da query</button>
+        <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
+        <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
+        <span class="export-hint" id="d1FaltWhen"></span>
+        <button class="export-btn" id="btnD1Zerar" type="button" title="apaga tudo que foi preenchido neste ciclo (para todos)"><span class="export-icon">🧹</span> Zerar análise</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
+        <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
+        <span class="export-hint" id="d1DoneHint"></span>
         <span class="export-hint" id="d1Hint">envie as duas bases para liberar</span>
       </div>
 
@@ -1480,13 +1507,14 @@
     try{
       const { data: row2 } = await supabaseClient
         .from(SUPABASE_TABLE)
-        .select('filename, conteudo')
+        .select('filename, conteudo, atualizado_em')
         .eq('chave', 'base2')
         .limit(1)
         .maybeSingle();
       if(row2 && row2.conteudo){
         base2Rows = parseBase2(row2.conteudo);
         dropBase2._setStatus((row2.filename||'base salva') + ' · ' + fmt(base2Rows.length) + ' linhas (salvo)', true);
+        if(row2.atualizado_em) d1SetFaltWhen(new Date(row2.atualizado_em));
       }
     }catch(err){
       // ainda não há base faltantes salva — segue sem erro visível
@@ -2769,7 +2797,25 @@
     return !/caminho/.test(loc);
   }
   function d1AllD1(){ return (lastMetricIds && lastMetricIds.d1) ? lastMetricIds.d1.slice() : []; }
-  function d1Ids(){ return d1AllD1().filter(id => d1Entrou(id) && !d1Resolved(id)); }
+  // localização do CSV de faltantes indicando que o pacote já foi processado
+  const D1_LOC_PROC = /carrinho|pronto\s*(?:para|pra|p\/)?\s*(?:a\s+)?rota|despach|expedid|entregue|in[_\s]*cart|ready/i;
+  function d1ProcPelaBase(id){
+    const row = d1Row(id);
+    return !!(row && row.loc && D1_LOC_PROC.test(String(row.loc).normalize('NFD').replace(/[\u0300-\u036f]/g,'')));
+  }
+  function d1Ids(){ return d1AllD1().filter(id => d1Entrou(id) && !d1Resolved(id) && !d1ProcPelaBase(id)); }
+  // pacotes que já classifiquei neste ciclo e que a atualização dos faltantes mostrou como processados
+  // (sumiram dos faltantes, mudaram de status na base ou a localização virou carrinho/rota)
+  function d1ProcessadosAposClassificar(){
+    if(!base1Data || !base2Rows) return [];
+    const ativos = new Set(d1Ids());
+    return Object.keys(d1Data).filter(id => {
+      const r = d1Data[id];
+      if(!d1DoCiclo(r) || !(r.dt || r.nome)) return false;
+      if(d1Resolved(id)) return false; // já contado em "saíram do D-1" pelo status colado
+      return !ativos.has(id);
+    });
+  }
   // ---- status do pacote lido da página colada do sistema ----
   // res:true = pacote já saiu (despachado/entregue...) -> some da lista D-1
   const D1_SYS_ST = [
@@ -2809,10 +2855,23 @@
   }
   function d1SetState(t){ const el = document.getElementById('d1SaveState'); if(el) el.textContent = t; }
 
+  // ---- ciclo: cada dia operacional começa zerado (virada às 06:00) ----
+  const D1_CORTE_H = 6;
+  function d1CicloAtual(){
+    const d = new Date(Date.now() - D1_CORTE_H*36e5);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function d1DoCiclo(r){ return !!(r && r.ciclo === d1CicloAtual()); }
+  function d1LimpaForaDoCiclo(){
+    for(const id in d1Data){ if(!d1Dirty[id] && !d1DoCiclo(d1Data[id])) delete d1Data[id]; }
+  }
   function d1MergeRemote(remote){
     // mantém o que foi alterado aqui e ainda não gravou; no resto vale o mais recente
+    // só aceita registros do ciclo atual — dados de dias anteriores não se misturam
+    d1LimpaForaDoCiclo();
     for(const id in remote){
       if(d1Dirty[id]) continue;
+      if(!d1DoCiclo(remote[id])) continue;
       const r = remote[id], l = d1Data[id];
       if(!l || !l.upd || (r.upd && r.upd >= l.upd)) d1Data[id] = r;
     }
@@ -2842,9 +2901,8 @@
       const { data } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave', D1_KEY).limit(1).maybeSingle();
       const remote = (data && data.conteudo) ? JSON.parse(data.conteudo) : {};
       for(const id in pending) remote[id] = d1Data[id];
-      // limpa registros com mais de 7 dias
-      const lim = new Date(Date.now() - 7*864e5).toISOString();
-      for(const id in remote){ if(remote[id] && remote[id].upd && remote[id].upd < lim) delete remote[id]; }
+      // remove do banco tudo que não é do ciclo atual (não mistura com dias anteriores)
+      for(const id in remote){ if(!d1DoCiclo(remote[id])) delete remote[id]; }
       const { error } = await supabaseClient.from(SUPABASE_TABLE).upsert({
         chave: D1_KEY, filename: null, conteudo: JSON.stringify(remote), atualizado_em: new Date().toISOString()
       }, { onConflict: 'chave' });
@@ -2864,8 +2922,10 @@
   }
 
   function d1SetField(id, field, value){
-    const cur = Object.assign({ dt:'', nome:'', desc:'' }, d1Data[id] || {});
+    const prev = d1DoCiclo(d1Data[id]) ? d1Data[id] : {};
+    const cur = Object.assign({ dt:'', nome:'', desc:'' }, prev);
     cur[field] = value;
+    cur.ciclo = d1CicloAtual();
     cur.upd = new Date().toISOString();
     d1Data[id] = cur;
     d1Dirty[id] = true;
@@ -2889,19 +2949,27 @@
       Object.values(d1Data).forEach(r => { if(r && r.nome) nomes.add(r.nome); });
       document.getElementById('d1Nomes').innerHTML = Array.from(nomes).sort().map(n => '<option value="' + d1Esc(n) + '">').join('');
       const rows = [];
-      d1DoneFirst(ids).forEach((id, i) => {
+      const showDone = !!(document.getElementById('d1ShowDone') || {}).checked;
+      let nShown = 0, nHidden = 0;
+      ids.forEach(id => {
         const r = d1Data[id] || {};
         if(q && !(id.toLowerCase().includes(q) || (r.nome||'').toLowerCase().includes(q) || (r.desc||'').toLowerCase().includes(q))) return;
         const done = r.dt && r.nome;
+        // já preenchido (data + nome) sai daqui e fica só no report, que é editável
+        if(done && !showDone && !q){ nHidden++; return; }
+        nShown++;
         rows.push(`<tr class="${done ? 'done' : ''}" data-id="${d1Esc(id)}">
-          <td>${i+1}</td>
+          <td>${nShown}</td>
           <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
           <td><input type="datetime-local" data-f="dt" value="${d1Esc(r.dt||'')}"></td>
           <td><input type="text" data-f="nome" list="d1Nomes" placeholder="nome de quem bipou" value="${d1Esc(r.nome||'')}"></td>
           <td><input type="text" data-f="desc" placeholder="vem da query (detalhe do pacote)" value="${d1Esc(r.desc||'')}"></td>
         </tr>`);
       });
-      document.getElementById('d1Body').innerHTML = rows.join('');
+      document.getElementById('d1Body').innerHTML = rows.join('') ||
+        '<tr><td colspan="5" style="text-align:center;padding:18px;color:#15803D;font-family:var(--sans);">✓ nenhum pacote aguardando consulta</td></tr>';
+      const dh = document.getElementById('d1DoneHint');
+      if(dh) dh.textContent = nHidden ? fmt(nHidden) + ' já preenchidos foram pro report (lá embaixo dá pra editar)' : '';
     }
 
     let comMov = 0, comDesc = 0, pend = 0;
@@ -2912,6 +2980,14 @@
     document.getElementById('d1ComDesc').textContent = fmt(comDesc);
     document.getElementById('d1Pend').textContent = fmt(pend);
     document.getElementById('d1Res').textContent = fmt(d1AllD1().filter(d1Resolved).length);
+    const proc = d1ProcessadosAposClassificar();
+    document.getElementById('d1Proc').textContent = fmt(proc.length);
+    // avisa quando uma atualização dos faltantes tira pacotes já classificados
+    if(window.__d1ProcAnt !== undefined && proc.length > window.__d1ProcAnt){
+      const n = proc.length - window.__d1ProcAnt;
+      d1SetState(n + (n === 1 ? ' pacote classificado foi processado e saiu' : ' pacotes classificados foram processados e saíram') + ' do report');
+    }
+    if(base1Data && base2Rows) window.__d1ProcAnt = proc.length;
     renderD1Report();
   }
 
@@ -3009,6 +3085,7 @@
   function d1DoneFirst(ids){ return ids.filter(d1Done).concat(ids.filter(id => !d1Done(id))); }
 
   let d1Page = 0;
+  let d1EditId = null;
   function d1PageSize(){ const el = document.getElementById('d1PageSize'); return el ? Number(el.value) : 15; }
   function d1PageCount(n){ const ps = d1PageSize(); return ps ? Math.max(1, Math.ceil(n / ps)) : 1; }
   function d1FillFilterOptions(){
@@ -3045,6 +3122,9 @@
     document.getElementById('d1FCount').textContent = fullIds.length === all.length ? fmt(all.length) + ' pacotes no report' : fmt(fullIds.length) + ' de ' + fmt(all.length) + ' pacotes (filtrado)';
     const nDone = fullIds.filter(d1Done).length, nPend = fullIds.length - nDone;
     let lastGroup = null;
+    // não redesenha enquanto alguém está editando uma linha do report
+    const ae = document.activeElement;
+    if(d1EditId && ae && ae.closest && ae.closest('.fg-edit')) return;
     document.getElementById('d1ReportBody').innerHTML = ids.map(id => {
       const r = d1Data[id] || {};
       const g = d1Done(id) ? 'done' : 'pend';
@@ -3068,14 +3148,27 @@
       const row = d1Row(id) || {};
       const st = d1Status(id);
       const tipo = d1Detalhe(id);
-      return sep + `<div class="fg-tr">
+      const editing = d1EditId === id;
+      const ed = editing ? `<div class="fg-edit no-print" data-id="${d1Esc(id)}">
+          <label>Última movimentação<input type="datetime-local" data-e="dt" value="${d1Esc(r.dt||'')}"></label>
+          <label>Quem bipou<input type="text" data-e="nome" list="d1Nomes" value="${d1Esc(r.nome||'')}"></label>
+          <label>Status<input type="text" data-e="st" list="d1PStList" value="${d1Esc(r.st||'')}"></label>
+          <label class="wide">Detalhe do pacote<input type="text" data-e="desc" value="${d1Esc(r.desc||'')}"></label>
+          <div class="fg-edit-btns">
+            <button type="button" class="export-btn primary" data-act="save">💾 Salvar</button>
+            <button type="button" class="export-btn" data-act="cancel">Cancelar</button>
+            <button type="button" class="export-btn" data-act="reopen" title="limpa data e nome e devolve pra lista de consulta">↩ Voltar pra consulta</button>
+          </div>
+        </div>` : '';
+      return sep + `<div class="fg-tr${editing ? ' editing' : ''}" data-id="${d1Esc(id)}">
+        <button type="button" class="fg-edit-btn no-print" data-edit="${d1Esc(id)}" title="editar este pacote">✎</button>
         <div class="fg-id">${d1Esc(id)}</div>
         <div>${mov}</div>
         <div>${rota ? '<span class="fg-rota">' + d1Esc(rota) + '</span>' : '<span class="fg-desc empty">—</span>'}</div>
         <div>${st.label ? '<span class="fg-loc ' + st.cls + '">' + d1Esc(st.label) + '</span>' : '<span class="fg-desc empty">—</span>'}</div>
         <div>${tipo ? '<span class="fg-vol">' + d1Esc(tipo) + '</span>' : '<span class="fg-desc empty">—</span>'}</div>
         <div class="fg-desc${r.desc ? '' : ' empty'}">${r.desc ? d1Esc(r.desc) : 'aguardando query'}</div>
-      </div>`;
+      </div>` + ed;
     }).join('') || '<div class="fg-empty">Nenhum pacote para mostrar.</div>';
     const sem = all.filter(id => { const r = d1Data[id] || {}; return !(r.dt || r.nome); }).length;
     document.getElementById('d1ReportSummary').textContent = fmt(all.length) + ' pacotes D-1' + (sem ? ' · ' + fmt(sem) + ' aguardando consulta' : ' · todos consultados');
@@ -3188,6 +3281,7 @@
     d1Copy(b.dataset.copy, 'd1Hint', 'ID ' + b.dataset.copy + ' copiado');
   });
   document.getElementById('d1Filter').addEventListener('input', ()=> renderD1Tab());
+  document.getElementById('d1ShowDone').addEventListener('change', ()=> renderD1Tab());
   document.getElementById('d1Order').addEventListener('change', ()=> renderD1Report());
   ['d1FSit','d1FRota','d1FStatus','d1FTipo','d1FColab'].forEach(x => document.getElementById(x).addEventListener('change', ()=>{ d1Page = 0; renderD1Report(); }));
   document.getElementById('d1FText').addEventListener('input', ()=>{ d1Page = 0; renderD1Report(); });
@@ -3462,6 +3556,33 @@
   function d1MarkFound(el, ok){ el.classList.toggle('found', !!ok); }
   // pacote esperando o nome do "Ver atualização" (última movimentação veio do Histórico do pacote)
   window.__d1Pend = null;
+  function d1FillRowNow(id, r){
+    if(r.dt) d1SetField(id, 'dt', r.dt);
+    if(r.nome) d1SetField(id, 'nome', d1TitleCase(r.nome));
+    if(r.st) d1SetField(id, 'st', r.st);
+    renderD1Tab();
+    d1FlashRow(id);
+  }
+  function d1FlashRow(id){
+    const tr = document.querySelector('#d1Body tr[data-id="' + id + '"]');
+    if(!tr) return;
+    tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+  }
+  function d1RenderMovs(r){
+    const box = document.getElementById('d1Movs');
+    const itens = [];
+    (r.evs || []).forEach(e => { if(e.dt) itens.push({ v:e.dt.v, t:e.dt.t, onde:e.sec, nome:e.nome || '' }); });
+    (r.hist || []).forEach(h => itens.push({ v:h.dt.v, t:h.dt.t, onde:'Histórico · ' + (h.st || ''), nome:'' }));
+    if(!itens.length){ box.innerHTML = ''; box.style.display = 'none'; return; }
+    itens.sort((a,b) => b.t - a.t);
+    const atual = document.getElementById('d1PDt').value;
+    box.style.display = 'flex';
+    box.innerHTML = '<span class="d1-movs-lbl">Movimentações achadas (clique pra usar):</span>' + itens.map((it, k) => {
+      const mp = d1MovParts(it.v);
+      return '<button type="button" class="d1-mov' + (it.v === atual ? ' sel' : '') + '" data-v="' + d1Esc(it.v) + '" data-n="' + d1Esc(it.nome) + '">'
+        + '<b>' + d1Esc(mp.date + ' ' + mp.time) + '</b> ' + d1Esc(it.onde) + (it.nome ? ' · ' + d1Esc(d1TitleCase(it.nome)) : '') + '</button>';
+    }).join('');
+  }
   function d1PendSave(nome, auto){
     const p = window.__d1Pend, nmEl = document.getElementById('d1PNome');
     if(!p || !nome) return false;
@@ -3470,7 +3591,7 @@
     if(!document.getElementById('d1PDt').value) document.getElementById('d1PDt').value = p.dt;
     window.__d1Pend = null;
     document.getElementById('d1PHint').textContent = 'nome do Ver atualização ✓ — ' + d1TitleCase(nome);
-    if(auto){ document.getElementById('btnD1PSave').click(); document.getElementById('d1PasteBox').focus(); }
+    document.getElementById('btnD1PSave').focus();
     return true;
   }
   function d1ApplyPaste(auto){
@@ -3479,13 +3600,14 @@
     // 2º passo: colou só o conteúdo do "Ver atualização" → pega o nome e salva
     if(window.__d1Pend && !d1ParseGestao(text)){
       const n = d1NameFromUpdate(text);
-      if(d1PendSave(n, auto)){ document.getElementById('d1PasteBox').value = ''; return; }
+      if(d1PendSave(n, auto)) return;
       document.getElementById('d1PHint').textContent = 'não achei o nome nesse texto — digite ou cole só o nome no campo "Quem bipou"';
       document.getElementById('d1PNome').focus();
       return;
     }
     const r = d1ParsePage(text);
     const cur = document.getElementById('d1PId').value;
+    // preenche a linha da tabela na hora (só quando o ID veio da própria página colada)
     d1FillPasteIdSelect(r.id || cur);
     const dtEl = document.getElementById('d1PDt'), nmEl = document.getElementById('d1PNome');
     dtEl.value = r.dt || ''; nmEl.value = r.nome ? d1TitleCase(r.nome) : '';
@@ -3498,20 +3620,36 @@
       const mp = d1MovParts(r.dt);
       document.getElementById('d1PHint').textContent = '⚠ última movimentação ' + mp.date + ' ' + mp.time + ' · ' + (r.onde || '') + ' — abra "Ver atualização" no sistema, copie o nome e cole aqui ou no campo "Quem bipou"';
       document.getElementById('btnD1PSave').disabled = false;
-      document.getElementById('d1PasteBox').value = '';
-      document.getElementById('d1PasteBox').focus();
-      return; // não salva sozinho: falta o nome
+      d1RenderMovs(r);
+      document.getElementById('d1PNome').focus();
+      return; // falta o nome
     }
     document.getElementById('d1PHint').textContent = miss.length ? 'não achei: ' + miss.join(', ') + ' — confira e complete' : ('achei tudo ✓' + (r.onde ? ' · ' + r.onde : '') + (r.st ? ' · status: ' + r.st : ' · status não identificado') + ' — confira e salve');
     document.getElementById('btnD1PSave').disabled = false;
-    // achou tudo: salva sozinho e já copia o próximo ID
-    if(auto && !miss.length && document.getElementById('d1PId').value){
-      document.getElementById('btnD1PSave').click();
-      document.getElementById('d1PasteBox').focus();
-      return;
-    }
+    d1RenderMovs(r);
+    // não salva sozinho: espera você conferir e apertar Salvar / Enter
     (miss.length ? (miss.includes('nome') ? nmEl : dtEl) : document.getElementById('btnD1PSave')).focus();
   }
+  document.getElementById('d1Movs').addEventListener('click', (e)=>{
+    const b = e.target.closest && e.target.closest('.d1-mov'); if(!b) return;
+    document.getElementById('d1PDt').value = b.dataset.v;
+    const nm = document.getElementById('d1PNome');
+    nm.value = b.dataset.n ? d1TitleCase(b.dataset.n) : '';
+    document.querySelectorAll('#d1Movs .d1-mov').forEach(x => x.classList.toggle('sel', x === b));
+    if(!b.dataset.n){
+      window.__d1Pend = { id: document.getElementById('d1PId').value, dt: b.dataset.v };
+      document.getElementById('d1PHint').textContent = 'essa movimentação não traz o nome — abra "Ver atualização" no sistema e cole o nome no campo "Quem bipou"';
+      nm.focus();
+    } else {
+      window.__d1Pend = null;
+      document.getElementById('d1PHint').textContent = 'movimentação trocada — confira e aperte Salvar';
+      document.getElementById('btnD1PSave').focus();
+    }
+  });
+  // Enter em qualquer campo do painel salva
+  ['d1PDt','d1PNome','d1PSt'].forEach(x => document.getElementById(x).addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('btnD1PSave').click(); }
+  }));
   document.getElementById('d1PasteBox').addEventListener('paste', ()=> setTimeout(()=> d1ApplyPaste(true), 30));
   // colou o nome direto no campo "Quem bipou" com um pacote esperando nome → salva
   document.getElementById('d1PNome').addEventListener('paste', ()=> setTimeout(()=>{
@@ -3526,6 +3664,7 @@
     d1FillPasteIdSelect(id);
     d1Copy(id, 'd1PHint', 'ID ' + id + ' copiado — cole na busca do sistema');
     document.getElementById('d1PasteBox').value = '';
+    const mv = document.getElementById('d1Movs'); mv.innerHTML = ''; mv.style.display = 'none';
     ['d1PDt','d1PNome','d1PId','d1PSt'].forEach(x => d1MarkFound(document.getElementById(x), false));
     document.getElementById('d1PDt').value = ''; document.getElementById('d1PNome').value = ''; document.getElementById('d1PSt').value = '';
     window.__d1Pend = null;
@@ -3546,6 +3685,72 @@
     document.getElementById('btnD1NextId').click();
     const nx = document.getElementById('d1PId').value;
     setTimeout(()=>{ document.getElementById('d1PHint').textContent = '✓ ' + id + ' salvo (' + d1FmtDt(dt) + ' · ' + d1TitleCase(nome) + (st ? ' · ' + st : '') + ')' + (saiu ? ' — saiu do D-1' : '') + (nx ? ' — próximo ID ' + nx + ' já copiado' : ' — todos feitos 🎉'); }, 150);
+  });
+
+  document.getElementById('d1ReportBody').addEventListener('click', (e)=>{
+    const eb = e.target.closest && e.target.closest('[data-edit]');
+    if(eb){
+      d1EditId = d1EditId === eb.dataset.edit ? null : eb.dataset.edit;
+      renderD1Report();
+      const f = document.querySelector('#d1ReportBody .fg-edit input[data-e="nome"]');
+      if(f) f.focus();
+      return;
+    }
+    const ab = e.target.closest && e.target.closest('.fg-edit [data-act]');
+    if(!ab) return;
+    const box = ab.closest('.fg-edit'), id = box.dataset.id, act = ab.dataset.act;
+    if(act === 'save'){
+      const r = d1Data[id] || {};
+      box.querySelectorAll('[data-e]').forEach(inp => {
+        let v = inp.value.trim();
+        if(inp.dataset.e === 'nome' && v) v = d1TitleCase(v);
+        if(v !== (r[inp.dataset.e] || '')) d1SetField(id, inp.dataset.e, v);
+      });
+    } else if(act === 'reopen'){
+      d1SetField(id, 'dt', ''); d1SetField(id, 'nome', '');
+    }
+    d1EditId = null;
+    document.activeElement && document.activeElement.blur && document.activeElement.blur();
+    renderD1Tab();
+  });
+  document.getElementById('d1ReportBody').addEventListener('keydown', (e)=>{
+    if(!e.target.closest || !e.target.closest('.fg-edit')) return;
+    if(e.key === 'Enter'){ e.preventDefault(); e.target.closest('.fg-edit').querySelector('[data-act="save"]').click(); }
+    if(e.key === 'Escape'){ d1EditId = null; e.target.blur(); renderD1Report(); }
+  });
+
+  document.getElementById('d1ProcBadge').addEventListener('click', ()=>{
+    const ids = d1ProcessadosAposClassificar();
+    if(!ids.length){ d1SetState('nenhum processado ainda'); return; }
+    d1Copy(ids.join('\n'), 'd1Hint', ids.length + ' IDs processados copiados');
+  });
+
+  function d1SetFaltWhen(d){
+    const el = document.getElementById('d1FaltWhen');
+    if(el && d && !isNaN(d)) el.textContent = 'faltantes de ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  }
+  document.getElementById('d1FaltFile').addEventListener('change', (e)=>{
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const inp = document.getElementById('fileBase2');
+    const dt = new DataTransfer(); dt.items.add(f);
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change'));
+    e.target.value = '';
+  });
+  document.getElementById('btnD1Buscar').addEventListener('click', ()=>{ refreshData(true); loadD1Analise(); });
+
+  document.getElementById('btnD1Zerar').addEventListener('click', async ()=>{
+    if(!confirm('Apagar tudo que foi preenchido na Análise D-1 (data, nome, status e descrição)? Isso vale pra todos que usam o painel.')) return;
+    clearTimeout(d1SaveTimer);
+    d1Data = {}; d1Dirty = {};
+    try{
+      const { error } = await supabaseClient.from(SUPABASE_TABLE).upsert({
+        chave: D1_KEY, filename: null, conteudo: '{}', atualizado_em: new Date().toISOString()
+      }, { onConflict: 'chave' });
+      if(error) throw error;
+      d1SetState('análise zerada ✓');
+    }catch(err){ showError('Não consegui zerar a Análise D-1: ' + (err.message || err)); }
+    renderD1Tab();
   });
 
   // atualiza o que os outros preencheram junto com a busca automática de 45s
@@ -3603,6 +3808,7 @@
     reader.onload = (e)=>{
       try{
         base2Rows = parseBase2(e.target.result);
+        d1SetFaltWhen(new Date());
         dropBase2._setStatus(file.name + ' · ' + fmt(base2Rows.length) + ' linhas', true);
         compute();
         saveBase2ToStorage(e.target.result, file.name);
