@@ -850,6 +850,19 @@
   .fg-who small{ display:block; font-size:11.5px; color:#64748B; margin-top:1px; }
   .fg-wait{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#B45309; background:#FFF7ED; border:1px solid #FED7AA; border-radius:999px; padding:4px 10px; }
   .fg-empty{ padding:22px; text-align:center; color:#94A3B8; font-size:13px; }
+  .d1q{ margin:14px 0 6px; background:#fff; border:1px solid #D7E0EE; border-left:4px solid #1E9E63; border-radius:12px; padding:14px 16px; }
+  .d1q-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  @media (max-width:900px){ .d1q-grid{ grid-template-columns:1fr; } }
+  .d1q-box{ border:1.5px dashed #9FB7D6; border-radius:10px; padding:12px; background:#F8FAFD; display:flex; flex-direction:column; gap:6px; }
+  .d1q-box.ok{ border-color:#22C55E; background:#F0FDF4; }
+  .d1q-box b.t{ font-size:13px; color:#0B2545; }
+  .d1q-box .st{ font-size:12px; color:#33415C; font-family:var(--mono); }
+  .d1q-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .d1q-unk{ margin-top:12px; display:none; }
+  .d1q-unk table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .d1q-unk td{ padding:4px 6px; border-bottom:1px solid #EEF2F7; }
+  .d1q-unk input{ width:100%; box-sizing:border-box; font:inherit; padding:5px 8px; border:1px solid #D7E0EE; border-radius:6px; }
+  .fg-sub-st{ display:inline-block; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:#047857; background:#ECFDF5; border:1px solid #A7F3D0; border-radius:5px; padding:1px 5px; margin-left:4px; }
   .fg-foot{ display:flex; justify-content:space-between; margin-top:12px; padding:0 4px; font-size:11.5px; color:#64748B; }
   .chart-wrap.chart-wrap-tall{ height:380px; }
 </style>
@@ -1174,6 +1187,48 @@
               <span class="export-hint" id="d1PHint"></span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="d1q">
+        <div class="d1-paste-head">
+          <div>
+            <div class="d1-paste-title">📥 Última bipagem pela query (automático)</div>
+            <div class="d1-paste-sub">Suba o CSV da query de bipagens (SHIPMENT · Usuario · SUBSTATUS · UPDT). O app pega a <b>bipagem mais recente</b> de cada pacote D-1 e preenche data, hora, status e colaborador sozinho. O nome vem do <b>Headcount</b>: suba uma vez e ele fica salvo pra todos.</div>
+          </div>
+          <label class="d1-filter" style="display:flex;flex-direction:column;gap:3px;font-size:10.5px;font-weight:800;text-transform:uppercase;color:#5B6B85;min-width:0;border:0;padding:0;">Ajustar horário da query
+            <select id="d1QTz" class="d1-filter" style="min-width:0;"><option value="0">sem ajuste</option><option value="-5">−5h</option><option value="-4">−4h</option><option value="-3">−3h</option><option value="-2">−2h</option><option value="-1">−1h</option><option value="1">+1h</option><option value="2">+2h</option><option value="3">+3h</option><option value="4">+4h</option><option value="5">+5h</option></select>
+          </label>
+        </div>
+        <div class="d1q-grid">
+          <div class="d1q-box" id="d1QBipBox">
+            <b class="t">① Query de bipagens (.csv)</b>
+            <span class="st" id="d1QBipSt">nenhuma query carregada</span>
+            <div class="d1q-row">
+              <label class="export-btn" style="cursor:pointer;"><span class="export-icon">📂</span> Escolher CSV da query<input type="file" id="d1QBipFile" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none;"></label>
+            </div>
+          </div>
+          <div class="d1q-box" id="d1QHcBox">
+            <b class="t">② Headcount — aba GRUPOS (.xlsx ou colar)</b>
+            <span class="st" id="d1QHcSt">nenhum headcount carregado</span>
+            <div class="d1q-row">
+              <label class="export-btn" style="cursor:pointer;"><span class="export-icon">👥</span> Escolher Headcount<input type="file" id="d1QHcFile" accept=".csv,.tsv,.txt,.xlsx,.xls" style="display:none;"></label>
+              <button class="export-btn" id="btnD1QHcPaste" type="button"><span class="export-icon">📋</span> Colar aba GRUPOS</button>
+            </div>
+            <div class="d1q-row" style="margin-top:2px;">
+              <input id="d1QHcLink" class="d1-filter" style="flex:1;min-width:180px;" placeholder="🔗 link do script da aba GRUPOS (…/exec)">
+              <button class="export-btn" id="btnD1QHcLink" type="button" style="padding:7px 12px;"><span class="export-icon">🔗</span> Ligar / atualizar</button>
+            </div>
+            <span class="st" id="d1QHcLinkSt"></span>
+            <div id="d1QHcPasteBox" style="display:none;">
+              <div style="font-size:12px;color:#33415C;margin:4px 0 6px;">Na planilha, abra a aba <b>GRUPOS</b>, aperte <b>Ctrl+A</b> e <b>Ctrl+C</b>, clique no quadro abaixo e aperte <b>Ctrl+V</b>.</div>
+              <textarea id="d1QHcText" style="width:100%;box-sizing:border-box;min-height:90px;font-family:var(--mono);font-size:11.5px;padding:8px;border:1.5px dashed #9FB7D6;border-radius:8px;" placeholder="cole aqui a aba GRUPOS (com o cabeçalho)…"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="d1q-unk" id="d1QUnk">
+          <div style="font-weight:800;color:#B45309;font-size:13px;margin-bottom:6px;">⚠️ Usuários da query sem nome no Headcount — digite o nome uma vez e fica salvo</div>
+          <table><tbody id="d1QUnkBody"></tbody></table>
         </div>
       </div>
 
@@ -2925,6 +2980,7 @@
     const prev = d1DoCiclo(d1Data[id]) ? d1Data[id] : {};
     const cur = Object.assign({ dt:'', nome:'', desc:'' }, prev);
     cur[field] = value;
+    if(field === 'dt' || field === 'nome') cur.src = 'manual';
     cur.ciclo = d1CicloAtual();
     cur.upd = new Date().toISOString();
     d1Data[id] = cur;
@@ -2934,6 +2990,7 @@
 
   function renderD1Tab(keepFocus){
     if(!viewD1) return;
+    try{ d1ApplyBip(); }catch(e){ console.warn('Bipagens da query:', e); }
     const ids = d1Ids();
     const has = !!(base1Data && base2Rows);
     ['btnD1CopyLines','btnD1CopyQuery','btnD1Import','btnD1ReportImg','btnD1ReportAll','btnD1ReportTxt'].forEach(b => document.getElementById(b).disabled = !has || ids.length === 0);
@@ -2962,7 +3019,7 @@
           <td>${nShown}</td>
           <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
           <td><input type="datetime-local" data-f="dt" value="${d1Esc(r.dt||'')}"></td>
-          <td><input type="text" data-f="nome" list="d1Nomes" placeholder="nome de quem bipou" value="${d1Esc(r.nome||'')}"></td>
+          <td><input type="text" data-f="nome" list="d1Nomes" placeholder="${r.uid ? d1Esc('Groot ' + r.uid + ' · sem nome') : 'nome de quem bipou'}" value="${d1Esc(r.nome || d1HcName(r.uid) || '')}" ${r.uid && !r.nome ? 'style="border-color:#F59E0B;background:#FFFBEB;"' : ''}></td>
           <td><input type="text" data-f="desc" placeholder="vem da query (detalhe do pacote)" value="${d1Esc(r.desc||'')}"></td>
         </tr>`);
       });
@@ -2979,6 +3036,7 @@
     document.getElementById('d1ComMov').textContent = fmt(comMov);
     document.getElementById('d1ComDesc').textContent = fmt(comDesc);
     document.getElementById('d1Pend').textContent = fmt(pend);
+    try{ d1UpdateQStatus(); }catch(e){}
     document.getElementById('d1Res').textContent = fmt(d1AllD1().filter(d1Resolved).length);
     const proc = d1ProcessadosAposClassificar();
     document.getElementById('d1Proc').textContent = fmt(proc.length);
@@ -3064,7 +3122,7 @@
       const vol = /volum/i.test(d1Detalhe(id));
       if(fTipo === 'vol' && !vol) return false;
       if(fTipo === 'nvol' && vol) return false;
-      if(fColab && d1TitleCase(r.nome || '') !== fColab) return false;
+      if(fColab && d1NomeOf(r) !== fColab) return false;
       if(fTxt && !(id.includes(fTxt) || (r.desc || '').toLowerCase().includes(fTxt))) return false;
       return true;
     });
@@ -3099,7 +3157,7 @@
     };
     fill('d1FRota', all.map(d1Rota), 'Todas');
     fill('d1FStatus', all.map(id => d1Status(id).label), 'Todos');
-    fill('d1FColab', all.map(id => d1TitleCase((d1Data[id] || {}).nome || '')), 'Todos');
+    fill('d1FColab', all.map(id => d1NomeOf(d1Data[id] || {})), 'Todos');
   }
   function renderD1Report(){
     const all = d1Ids();
@@ -3139,8 +3197,8 @@
       const mp = d1MovParts(r.dt);
       let mov;
       if(r.nome || r.dt){
-        const nome = r.nome ? d1TitleCase(r.nome) : '—';
-        const av = r.nome ? `<span class="fg-av" style="background:${d1AvColor(nome)}">${d1Esc(d1Initials(nome))}</span>` : '';
+        const nome = d1NomeOf(r) || '—';
+        const av = (r.nome || d1HcName(r.uid)) ? `<span class="fg-av" style="background:${d1AvColor(nome)}">${d1Esc(d1Initials(nome))}</span>` : '';
         mov = `<div class="fg-mov">${av}<div class="fg-who"><b>${d1Esc(nome)}</b><small>${d1Esc(mp.date)}${mp.time ? ' · ' + d1Esc(mp.time) : ''}</small></div></div>`;
       } else {
         mov = '<span class="fg-wait">● aguardando consulta</span>';
@@ -3191,7 +3249,8 @@
       lines.push('');
       lines.push('*' + id + '*' + (tipo ? '  ·  📦 *' + tipo.toUpperCase() + '*' : ''));
       lines.push('🛣️ Rota: ' + (rota || '—') + '  ·  📊 Status: ' + (st.label || '—'));
-      lines.push('👤 Colaborador: ' + (r.nome ? d1TitleCase(r.nome) : 'aguardando consulta') + (r.dt ? ' (' + d1MovParts(r.dt).date + ')' : ''));
+      const mpT = d1MovParts(r.dt);
+      lines.push('👤 Colaborador: ' + (d1NomeOf(r) || 'aguardando consulta') + (r.dt ? ' (' + mpT.date + (mpT.time ? ' ' + mpT.time : '') + ')' : ''));
       if(r.desc) lines.push('📝 ' + r.desc);
     });
     return lines.join('\n');
@@ -3752,6 +3811,407 @@
     }catch(err){ showError('Não consegui zerar a Análise D-1: ' + (err.message || err)); }
     renderD1Tab();
   });
+
+  // ================= BIPAGENS DA QUERY + HEADCOUNT =================
+  // query: SHIPMENT, SVC, Usuario, SUBSTATUS, UPDT (várias linhas por pacote) -> fica a mais recente
+  // headcount: arquivo de colaboradores; o app acha sozinho a coluna que bate com o "Usuario" e a de nome
+  const D1_BIP_KEY = 'd1_bipagens', D1_HC_KEY = 'd1_headcount';
+  let d1Bip = new Map();     // shipment -> { raw:'2026-11-09T10:05:21', uid:'2111748', sub:'sorting' }
+  let d1Hc = {};             // uid -> nome
+  let d1BipStamp = null, d1HcStamp = null, d1BipName = '';
+  // ajuste em horas aplicado ao UPDT da query (salvo no banco, vale pra todos)
+  const D1_OFF_KEY = 'd1_query_ajuste';
+  let d1Off = 0;
+  document.getElementById('d1QTz').value = '0';
+
+  // normalizador próprio (sem acento, só letras/números) e busca da linha de cabeçalho
+  function d1NK(v){ return String(v === undefined || v === null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+  function d1FindHeaderRow(rows, groups){
+    for(let r = 0; r < Math.min(rows.length, 25); r++){
+      const row = rows[r] || [];
+      if(groups.every(g => findHeaderIndex(row, g) !== -1)) return r;
+    }
+    return -1;
+  }
+  // ID do headcount: aceita "2.111.748", "2111748.0", espaços
+  function d1HcId(v){
+    let s = normId(v); if(!s) return '';
+    if(/^[\d.\s]+$/.test(s) && /\./.test(s) && !/^\d+\.\d{1,2}$/.test(s)) s = s.replace(/[.\s]/g,'');
+    return s.trim();
+  }
+  function d1HcName(uid){ return uid && d1Hc[uid] ? d1Hc[uid] : ''; }
+  function d1NomeOf(r){
+    if(!r) return '';
+    if(r.nome) return d1TitleCase(r.nome);
+    const hn = d1HcName(r.uid);
+    if(hn) return d1TitleCase(hn);
+    return r.uid ? 'Usuário ' + r.uid : '';
+  }
+  function d1SubLabel(s){
+    const k = String(s || '').trim().toLowerCase();
+    return D1_ST_LABEL[k] || k.replace(/_/g,' ').replace(/^\w/, c => c.toUpperCase());
+  }
+  // "2026-11-09T10:05:21.244369" -> valor do datetime-local, convertendo de UTC se precisar
+  function d1BipLocal(raw){
+    const m = String(raw || '').match(/(\d{4})-(\d{2})-(\d{2})[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?/)
+      || String(raw || '').match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if(!m) return '';
+    let y, mo, d;
+    if(m[1].length === 4){ y = +m[1]; mo = +m[2]; d = +m[3]; } else { d = +m[1]; mo = +m[2]; y = +m[3]; }
+    const h = +m[4], mi = +m[5];
+    const dt = new Date(new Date(y, mo-1, d, h, mi).getTime() + d1Off * 3600000);
+    return dt.getFullYear() + '-' + d1Pad(dt.getMonth()+1) + '-' + d1Pad(dt.getDate()) + 'T' + d1Pad(dt.getHours()) + ':' + d1Pad(dt.getMinutes());
+  }
+  function d1RawKey(raw){ return String(raw || '').replace(/^(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1').replace(' ', 'T'); }
+
+  function d1ReadRowsFromFile(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('não consegui ler o arquivo'));
+      reader.onload = ev => {
+        try{
+          if(/\.xlsx?$/i.test(file.name)){
+            const wb = XLSX.read(ev.target.result, { type:'array', cellDates:true });
+            resolve(wb.SheetNames.map(n => ({ name:n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, raw:false, defval:null }) })));
+          } else {
+            const text = new TextDecoder('utf-8').decode(ev.target.result);
+            const sep = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : (text.includes('\t') ? '\t' : ',');
+            const wb = XLSX.read(text, { type:'string', raw:true, FS: sep });
+            resolve([{ name: file.name, rows: XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, raw:true, defval:null }) }]);
+          }
+        }catch(err){ reject(err); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function d1ParseBipRows(rows){
+    const h = d1FindHeaderRow(rows, [['shipment','shipment_id','id do pacote','pacote','unit_id']]);
+    if(h === -1) throw new Error('não achei a coluna SHIPMENT na query');
+    const head = rows[h];
+    const iShip = findHeaderIndex(head, ['shipment','shipment_id','id do pacote','pacote','unit_id']);
+    const iUser = findHeaderIndex(head, ['usuario','user_id','usuario_id','user','operador']);
+    const iSub = findHeaderIndex(head, ['substatus','sub_status','status']);
+    const iDt = findHeaderIndex(head, ['updt','update','date_updated','date_created','data','dt','datetime']);
+    if(iDt === -1) throw new Error('não achei a coluna de data/hora (UPDT) na query');
+    const map = new Map();
+    for(let i = h+1; i < rows.length; i++){
+      const r = rows[i]; if(!r) continue;
+      const id = normId(r[iShip]); if(!id) continue;
+      let raw = r[iDt]; if(raw instanceof Date) raw = raw.toISOString(); raw = String(raw || '').trim(); if(!raw) continue;
+      const cur = map.get(id);
+      if(cur && d1RawKey(cur.raw) >= d1RawKey(raw)) continue;
+      map.set(id, { raw, uid: iUser === -1 ? '' : (normId(r[iUser]) || ''), sub: iSub === -1 ? '' : String(r[iSub] || '').trim() });
+    }
+    return map;
+  }
+
+  // aplica a query nos pacotes D-1 (só sobrescreve o que veio da própria query ou se a bipagem for mais nova)
+  function d1ApplyBip(){
+    if(!d1Bip.size) return 0;
+    let changed = 0;
+    d1Ids().forEach(id => {
+      const b = d1Bip.get(id); if(!b) return;
+      const v = d1BipLocal(b.raw); if(!v) return;
+      const r = d1DoCiclo(d1Data[id]) ? d1Data[id] : {};
+      const fromQuery = r.src === 'query';
+      if(!fromQuery && r.dt && r.dt >= v){
+        // data já preenchida (consulta colada) e é a MESMA bipagem da query: só completa quem bipou
+        if(!r.nome && r.dt === v){
+          const nm = d1HcName(b.uid);
+          if(nm || r.uid !== b.uid){
+            d1Data[id] = Object.assign({}, r, { uid: b.uid, nome: nm, ciclo: d1CicloAtual(), upd: new Date().toISOString() });
+            d1Dirty[id] = true; changed++;
+          }
+        }
+        return;
+      }
+      const nome = d1HcName(b.uid);
+      const st = b.sub ? d1SubLabel(b.sub) : '';
+      const stNovo = (fromQuery || !r.st) ? st : r.st;
+      if(fromQuery && r.dt === v && r.uid === b.uid && (r.st || '') === stNovo && (r.nome || '') === nome) return;
+      d1Data[id] = Object.assign({ desc:'' }, r, { dt: v, uid: b.uid, sub: b.sub, st: stNovo, nome, src:'query', ciclo: d1CicloAtual(), upd: new Date().toISOString() });
+      d1Dirty[id] = true;
+      changed++;
+    });
+    if(changed) d1ScheduleSave();
+    d1RenderUnknown();
+    return changed;
+  }
+
+  function d1RenderUnknown(){
+    const box = document.getElementById('d1QUnk');
+    const ids = new Set(d1Ids());
+    const cnt = new Map();
+    d1Bip.forEach((b, id) => { if(b.uid && !d1Hc[b.uid] && ids.has(id)) cnt.set(b.uid, (cnt.get(b.uid) || 0) + 1); });
+    if(!cnt.size){ box.style.display = 'none'; return; }
+    const act = document.activeElement;
+    if(act && act.closest && act.closest('#d1QUnk')) return; // não redesenha enquanto digita
+    box.style.display = 'block';
+    document.getElementById('d1QUnkBody').innerHTML = Array.from(cnt.entries()).sort((a,b) => b[1]-a[1]).map(([uid, n]) =>
+      `<tr><td style="width:120px;font-family:var(--mono);font-weight:800;">${d1Esc(uid)}</td><td style="width:110px;color:#64748B;">${n} pacote(s) D-1</td><td><input data-uid="${d1Esc(uid)}" placeholder="nome do colaborador" list="d1Nomes"></td></tr>`
+    ).join('');
+  }
+  document.getElementById('d1QUnkBody').addEventListener('change', async e => {
+    const inp = e.target; if(!inp.dataset || !inp.dataset.uid) return;
+    const nome = inp.value.trim(); if(!nome) return;
+    d1Hc[inp.dataset.uid] = nome;
+    inp.blur();
+    await d1SaveHc();
+    renderD1Tab();
+  });
+
+  function d1UpdateQStatus(){
+    const ids = new Set(d1Ids());
+    let hit = 0; ids.forEach(id => { if(d1Bip.has(id)) hit++; });
+    const uids = new Set(); d1Bip.forEach(b => { if(b.uid) uids.add(b.uid); });
+    let named = 0; uids.forEach(u => { if(d1Hc[u]) named++; });
+    let mn = '', mx = '';
+    d1Bip.forEach(b => { const v = d1BipLocal(b.raw); if(!v) return; if(!mn || v < mn) mn = v; if(!mx || v > mx) mx = v; });
+    const faixa = mn ? ' · bipagens de ' + d1FmtDt(mn) + ' até ' + d1FmtDt(mx) : '';
+    document.getElementById('d1QBipSt').textContent = d1Bip.size
+      ? (d1BipName ? d1BipName + ' · ' : '') + fmt(d1Bip.size) + ' pacotes' + faixa + ' · ' + fmt(hit) + ' de ' + fmt(ids.size) + ' D-1 encontrados'
+      : 'nenhuma query carregada';
+    document.getElementById('d1QBipBox').classList.toggle('ok', d1Bip.size > 0);
+    const nHc = Object.keys(d1Hc).length;
+    document.getElementById('d1QHcSt').textContent = nHc
+      ? fmt(nHc) + ' colaboradores no banco' + (uids.size ? ' · ' + named + ' de ' + uids.size + ' usuários da query identificados' : '')
+      : 'nenhum headcount carregado';
+    document.getElementById('d1QHcBox').classList.toggle('ok', nHc > 0);
+  }
+
+  // headcount: escolhe a aba/coluna de ID que mais bate com os usuários da query; nome = coluna "nome"/"colaborador"
+  function d1ParseHc(sheets){
+    const uids = new Set(); d1Bip.forEach(b => { if(b.uid) uids.add(b.uid); });
+    const ID_HINTS = ['idmeli','usermeli','idusuario','usuario','userid','iduser','idml','meliid','login','ldap','grootid','groot','matricula','id'];
+    let best = null;
+    // a aba GRUPOS vem primeiro (é onde ficam os colaboradores)
+    sheets = sheets.slice().sort((a, b) => (d1NK(b.name) === 'grupos') - (d1NK(a.name) === 'grupos'));
+    for(const sh of sheets){
+      const rows = sh.rows || [];
+      const isGrupos = d1NK(sh.name).includes('grupos');
+      for(let h = 0; h < Math.min(rows.length, 30); h++){
+        const head = (rows[h] || []).map(d1NK);
+        let iNome = head.findIndex(x => x === 'nome' || x === 'nomecompleto' || x === 'colaborador' || x === 'nomedocolaborador' || x === 'funcionario');
+        if(iNome === -1) iNome = head.findIndex(x => x.includes('nome') && !x.includes('lider') && !x.includes('supervisor') && !x.includes('gestor'));
+        if(iNome === -1) continue;
+        for(let c = 0; c < head.length; c++){
+          if(c === iNome) continue;
+          let hits = 0, filled = 0;
+          for(let i = h+1; i < rows.length; i++){
+            const v = d1HcId((rows[i] || [])[c]); if(!v) continue; filled++;
+            if(uids.has(v)) hits++;
+          }
+          if(!filled) continue;
+          const hint = ID_HINTS.indexOf(head[c]);
+          const score = hits * 1000 + (hint === -1 ? 0 : (ID_HINTS.length - hint)) + (isGrupos ? 500 : 0);
+          if(!uids.size && hint === -1) continue;
+          if(!best || score > best.score) best = { score, hits, sheet: sh, h, iNome, iId: c, idName: (rows[h] || [])[c] };
+        }
+        break; // cabeçalho dessa aba já achado
+      }
+    }
+    if(!best || (uids.size && !best.hits && best.score < 1)) throw new Error('não achei no Headcount uma coluna de ID que bata com o "Usuario" da query');
+    const map = {};
+    const rows = best.sheet.rows;
+    for(let i = best.h+1; i < rows.length; i++){
+      const r = rows[i] || [];
+      const id = d1HcId(r[best.iId]); const nome = r[best.iNome] ? String(r[best.iNome]).trim() : '';
+      if(id && nome) map[id] = nome;
+    }
+    return { map, info: 'aba "' + best.sheet.name + '", coluna "' + best.idName + '"' };
+  }
+
+  async function d1SaveHc(){
+    try{
+      const stamp = new Date().toISOString();
+      const { error } = await supabaseClient.from(SUPABASE_TABLE).upsert({ chave: D1_HC_KEY, filename: null, conteudo: JSON.stringify(d1Hc), atualizado_em: stamp }, { onConflict: 'chave' });
+      if(error) throw error;
+      d1HcStamp = stamp;
+    }catch(err){ showError('Headcount não foi salvo no banco: ' + (err.message || err), 'save'); }
+  }
+  async function d1SaveBip(){
+    try{
+      const arr = []; d1Bip.forEach((b, id) => arr.push([id, b.raw, b.uid, b.sub]));
+      const conteudo = BASE1_DATA_PREFIX + await gzipToBase64(JSON.stringify(arr));
+      const stamp = new Date().toISOString();
+      const { error } = await supabaseClient.from(SUPABASE_TABLE).upsert({ chave: D1_BIP_KEY, filename: d1BipName, conteudo, atualizado_em: stamp }, { onConflict: 'chave' });
+      if(error) throw error;
+      d1BipStamp = stamp;
+    }catch(err){ showError('Query de bipagens não foi salva no banco: ' + (err.message || err), 'save'); }
+  }
+  async function d1LoadQueryData(){
+    try{
+      const { data } = await supabaseClient.from(SUPABASE_TABLE).select('chave, filename, atualizado_em').in('chave', [D1_BIP_KEY, D1_HC_KEY]);
+      const meta = {}; (data || []).forEach(r => meta[r.chave] = r);
+      let changed = false;
+      if(meta[D1_HC_KEY] && meta[D1_HC_KEY].atualizado_em !== d1HcStamp){
+        const { data: r } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave', D1_HC_KEY).maybeSingle();
+        if(r && r.conteudo){ d1Hc = JSON.parse(r.conteudo); changed = true; }
+        d1HcStamp = meta[D1_HC_KEY].atualizado_em;
+      }
+      if(meta[D1_BIP_KEY] && meta[D1_BIP_KEY].atualizado_em !== d1BipStamp){
+        const { data: r } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave', D1_BIP_KEY).maybeSingle();
+        if(r && r.conteudo && r.conteudo.startsWith(BASE1_DATA_PREFIX)){
+          const arr = JSON.parse(await base64ToGunzip(r.conteudo.slice(BASE1_DATA_PREFIX.length)));
+          d1Bip = new Map(arr.map(([id, raw, uid, sub]) => [id, { raw, uid, sub }]));
+          d1BipName = meta[D1_BIP_KEY].filename || '';
+          changed = true;
+        }
+        d1BipStamp = meta[D1_BIP_KEY].atualizado_em;
+      }
+      if(changed) renderD1Tab();
+      d1UpdateQStatus();
+    }catch(err){ console.warn('Não consegui ler query/headcount salvos:', err); }
+  }
+
+  document.getElementById('d1QBipFile').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const st = document.getElementById('d1QBipSt'); st.textContent = 'lendo…';
+    try{
+      const sheets = await d1ReadRowsFromFile(f);
+      d1Bip = d1ParseBipRows(sheets[0].rows);
+      d1BipName = f.name;
+      const n = d1ApplyBip();
+      renderD1Tab();
+      d1UpdateQStatus();
+      document.getElementById('d1PHint').textContent = n + ' pacotes D-1 preenchidos pela query';
+      await d1SaveBip();
+    }catch(err){ st.textContent = 'erro: ' + err.message; }
+    e.target.value = '';
+  });
+  document.getElementById('d1QHcFile').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    const st = document.getElementById('d1QHcSt'); st.textContent = 'lendo…';
+    try{
+      const res = d1ParseHc(await d1ReadRowsFromFile(f));
+      d1Hc = Object.assign({}, d1Hc, res.map); // mantém os nomes digitados à mão
+      renderD1Tab();
+      d1UpdateQStatus();
+      st.textContent += ' · ' + res.info;
+      await d1SaveHc();
+    }catch(err){ st.textContent = 'erro: ' + err.message; }
+    e.target.value = '';
+  });
+  // ---- Headcount ligado por link (Apps Script na conta da Isis, ou planilha publicada) ----
+  const D1_HC_LINK_KEY = 'd1_hc_link';
+  // script da aba GRUPOS (Headcount - KN 2026) — já vem ligado
+  const D1_HC_LINK_PADRAO = 'https://script.google.com/macros/s/AKfycbxR0AfjVQy5CxXUj6HfC_yEzE2UPNgE7kKMbNBHOLjs1LCJ-G9qZE1C8lS9MJRV_w7R/exec';
+  let d1HcLink = '', d1HcLinkSync = 0, d1HcLinkBusy = false;
+  function d1HcLinkUrl(u){
+    u = String(u || '').trim();
+    const m = u.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if(m && !/\/pub\b|output=csv/.test(u)) return 'https://docs.google.com/spreadsheets/d/' + m[1] + '/gviz/tq?tqx=out:csv&sheet=GRUPOS';
+    return u;
+  }
+  // aceita o formato dos scripts que já existem: matriz de linhas, lista de objetos,
+  // ou um objeto com várias abas dentro (pega a GRUPOS / a que tiver nome de colaborador)
+  function d1RowsFromJson(j){
+    const isMatrix = a => Array.isArray(a) && a.length && a.every(r => Array.isArray(r));
+    const isObjs = a => Array.isArray(a) && a.length && a.every(r => r && typeof r === 'object' && !Array.isArray(r));
+    const toRows = a => {
+      if(isMatrix(a)) return a;
+      const keys = []; a.forEach(o => Object.keys(o).forEach(k => { if(!keys.includes(k)) keys.push(k); }));
+      return [keys].concat(a.map(o => keys.map(k => o[k] === undefined ? null : o[k])));
+    };
+    if(isMatrix(j) || isObjs(j)) return toRows(j);
+    const cands = [];
+    const walk = (o, path, depth) => {
+      if(!o || typeof o !== 'object' || depth > 4) return;
+      for(const k in o){
+        const v = o[k], p = path + '/' + k;
+        if(isMatrix(v) || isObjs(v)) cands.push({ p, rows: toRows(v) });
+        else if(v && typeof v === 'object') walk(v, p, depth + 1);
+      }
+    };
+    walk(j, '', 0);
+    if(!cands.length) return null;
+    const score = c => (/grupo/i.test(c.p) ? 1000 : 0) + ((c.rows[0] || []).some(h => /nome|colaborador/i.test(String(h))) ? 100 : 0) + Math.min(c.rows.length, 99);
+    cands.sort((a, b) => score(b) - score(a));
+    return cands[0].rows;
+  }
+  async function d1SyncHcLink(manual){
+    if(!d1HcLink || d1HcLinkBusy) return;
+    const st = document.getElementById('d1QHcLinkSt');
+    d1HcLinkBusy = true; st.textContent = 'buscando GRUPOS pelo link…';
+    try{
+      const resp = await fetch(d1HcLinkUrl(d1HcLink), { redirect:'follow' });
+      if(!resp.ok) throw new Error('o link respondeu ' + resp.status);
+      const text = await resp.text();
+      if(/^\s*</.test(text)) throw new Error('o link abriu uma página de login — confira se o script está como "Qualquer pessoa"');
+      let rows = null;
+      let json = null; try{ json = JSON.parse(text); }catch(_){}
+      if(json !== null) rows = d1RowsFromJson(json);
+      else { const wb = XLSX.read(text, { type:'string', raw:true }); rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, raw:false, defval:null }); }
+      if(!rows || !rows.length) throw new Error('o link respondeu, mas não achei a lista de colaboradores na resposta');
+      const res = d1ParseHc([{ name:'GRUPOS', rows }]);
+      const novo = Object.assign({}, d1Hc, res.map);
+      const mudou = JSON.stringify(novo) !== JSON.stringify(d1Hc);
+      d1Hc = novo; d1HcLinkSync = Date.now();
+      st.textContent = '🔗 ligado · ' + Object.keys(res.map).length + ' colaboradores lidos às ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+      if(mudou){ renderD1Tab(); await d1SaveHc(); }
+      d1UpdateQStatus();
+    }catch(err){
+      st.textContent = '⚠️ não consegui ler pelo link: ' + err.message;
+    }finally{ d1HcLinkBusy = false; }
+  }
+  async function d1LoadHcLink(){
+    try{
+      const { data } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave', D1_HC_LINK_KEY).maybeSingle();
+      const link = (data && data.conteudo) ? data.conteudo : D1_HC_LINK_PADRAO;
+      if(link !== d1HcLink){ d1HcLink = link; document.getElementById('d1QHcLink').value = link; d1HcLinkSync = 0; }
+      if(d1HcLink && Date.now() - d1HcLinkSync > 10*60*1000) d1SyncHcLink(false); // relê a GRUPOS a cada 10 min
+    }catch(err){ console.warn('link do headcount:', err); }
+  }
+  document.getElementById('btnD1QHcLink').addEventListener('click', async () => {
+    const link = document.getElementById('d1QHcLink').value.trim();
+    const st = document.getElementById('d1QHcLinkSt');
+    if(!link){ st.textContent = 'cole o link primeiro'; return; }
+    d1HcLink = link;
+    try{
+      const { error } = await supabaseClient.from(SUPABASE_TABLE).upsert({ chave: D1_HC_LINK_KEY, filename: null, conteudo: link, atualizado_em: new Date().toISOString() }, { onConflict: 'chave' });
+      if(error) throw error;
+    }catch(err){ showError('Link do headcount não foi salvo no banco: ' + (err.message || err), 'save'); }
+    d1SyncHcLink(true);
+  });
+  setInterval(() => { if(viewD1.style.display !== 'none') d1LoadHcLink(); }, 60000);
+  d1LoadHcLink();
+
+  document.getElementById('btnD1QHcPaste').addEventListener('click', () => {
+    const bx = document.getElementById('d1QHcPasteBox');
+    bx.style.display = bx.style.display === 'block' ? 'none' : 'block';
+    if(bx.style.display === 'block') document.getElementById('d1QHcText').focus();
+  });
+  document.getElementById('d1QHcText').addEventListener('paste', () => setTimeout(async () => {
+    const st = document.getElementById('d1QHcSt');
+    const text = document.getElementById('d1QHcText').value;
+    if(!text.trim()) return;
+    try{
+      const wb = XLSX.read(text, { type:'string', raw:true, FS: text.includes('\t') ? '\t' : undefined });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, raw:false, defval:null });
+      const res = d1ParseHc([{ name:'GRUPOS', rows }]);
+      d1Hc = Object.assign({}, d1Hc, res.map);
+      renderD1Tab(); d1UpdateQStatus();
+      st.textContent += ' · coluna de ID: "' + res.info.replace(/^.*coluna "/, '').replace(/"$/, '') + '"';
+      document.getElementById('d1QHcText').value = '';
+      document.getElementById('d1QHcPasteBox').style.display = 'none';
+      await d1SaveHc();
+    }catch(err){ st.textContent = 'erro: ' + err.message; }
+  }, 50));
+  document.getElementById('d1QTz').addEventListener('change', async e => {
+    d1Off = Number(e.target.value) || 0;
+    renderD1Tab(); d1UpdateQStatus();
+    try{ await supabaseClient.from(SUPABASE_TABLE).upsert({ chave: D1_OFF_KEY, filename: null, conteudo: String(d1Off), atualizado_em: new Date().toISOString() }, { onConflict: 'chave' }); }catch(_){}
+  });
+  (async () => {
+    try{
+      const { data } = await supabaseClient.from(SUPABASE_TABLE).select('conteudo').eq('chave', D1_OFF_KEY).maybeSingle();
+      const n = data && data.conteudo !== null && data.conteudo !== '' ? Number(data.conteudo) : 0;
+      if(!isNaN(n) && n !== d1Off){ d1Off = n; document.getElementById('d1QTz').value = String(n); renderD1Tab(); d1UpdateQStatus(); }
+    }catch(_){}
+  })();
+  setInterval(()=>{ if(viewD1.style.display !== 'none') d1LoadQueryData(); }, 45000);
+  d1LoadQueryData();
 
   // atualiza o que os outros preencheram junto com a busca automática de 45s
   setInterval(()=>{ if(viewD1.style.display !== 'none') loadD1Analise(); }, 45000);
