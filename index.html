@@ -3011,7 +3011,13 @@
   ];
   // acha o tipo do status pelo texto (o texto salvo é exatamente o que veio da página)
   function d1SysSt(txt){ txt = String(txt || ''); return D1_SYS_ST.find(x => x.k === txt) || D1_SYS_ST.find(x => x.re.test(txt)) || null; }
-  function d1Resolved(id){ const r = d1Data[id]; const s = r && r.st ? d1SysSt(r.st) : null; return !!(s && s.res); }
+  function d1Resolved(id){
+    const r = d1Data[id]; if(!r) return false;
+    const s = r.st ? d1SysSt(r.st) : null;
+    if(s && s.res) return true;
+    const s2 = r.sub ? d1SysSt(r.sub) : null; // substatus cru da query (ex.: ready_to_ship, in_cart)
+    return !!(s2 && s2.res);
+  }
   function d1FindStatus(text, li){
     const lines = text.split(/\r?\n/);
     // 1) "Status: xxx" explícito
