@@ -1172,6 +1172,7 @@
             <div class="d1-paste-title">⚡ Consulta rápida — cole a página do sistema</div>
             <div class="d1-paste-sub">1) clique em <b>Copiar próximo ID</b> e cole na busca do sistema · 2) na página do pacote aperte <b>Ctrl+A</b> e <b>Ctrl+C</b> · 3) clique no quadro abaixo e aperte <b>Ctrl+V</b>. Os campos ao lado são preenchidos pra você <b>conferir</b>. Se a última movimentação estiver errada, clique na certa na lista de movimentações. Depois aperte <b>Salvar</b> (ou Enter) — aí o próximo ID já fica copiado.</div>
           </div>
+          <button class="export-btn" id="btnD1OpenNext" type="button" disabled title="abre o próximo pacote pendente direto no sistema (sempre na mesma aba) — depois é só Ctrl+A, Ctrl+C lá e colar aqui"><span class="export-icon">🔎</span> Abrir próximo no sistema</button>
           <button class="export-btn" id="btnD1NextId" type="button" disabled><span class="export-icon">➡️</span> Copiar próximo ID</button>
         </div>
         <div class="d1-movs" id="d1Movs"></div>
@@ -2979,6 +2980,7 @@
     const row = d1Row(id);
     return !!(row && row.loc && D1_LOC_PROC.test(String(row.loc).normalize('NFD').replace(/[\u0300-\u036f]/g,'')));
   }
+  const D1_MELI_URL = 'https://envios.adminml.com/logistics/package-management/package/';
   function d1Ids(){ return d1AllD1().filter(id => d1Entrou(id) && !d1Resolved(id) && !d1ProcPelaBase(id)); }
   // pacotes que já classifiquei neste ciclo e que a atualização dos faltantes mostrou como processados
   // (sumiram dos faltantes, mudaram de status na base ou a localização virou carrinho/rota)
@@ -3144,7 +3146,7 @@
         nShown++;
         rows.push(`<tr class="${done ? 'done' : ''}" data-id="${d1Esc(id)}">
           <td>${nShown}</td>
-          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
+          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
           <td><input type="datetime-local" data-f="dt" value="${d1Esc(r.dt||'')}"></td>
           <td><input type="text" data-f="nome" list="d1Nomes" placeholder="${r.uid ? d1Esc('Groot ' + r.uid + ' · sem nome') : 'nome de quem bipou'}" value="${d1Esc(r.nome || d1HcName(r.uid) || '')}" ${r.uid && !r.nome ? 'style="border-color:#F59E0B;background:#FFFBEB;"' : ''}></td>
           <td><input type="text" data-f="desc" placeholder="vem da query (detalhe do pacote)" value="${d1Esc(r.desc||'')}"></td>
@@ -3732,6 +3734,7 @@
     const stList = document.getElementById('d1PStList');
     if(stList && !stList.options.length) stList.innerHTML = D1_SYS_ST.map(x => '<option value="' + d1Esc(x.k) + '">' + (x.res ? 'sai do D-1' : '') + '</option>').join('');
     document.getElementById('btnD1NextId').disabled = !d1Ids().length;
+    document.getElementById('btnD1OpenNext').disabled = !d1Ids().length;
   }
   function d1NextPending(after){
     const ids = d1Ids();
@@ -3844,6 +3847,17 @@
     if(window.__d1Pend && n) d1PendSave(n, true); else if(n) el.value = d1TitleCase(n);
   }, 30));
   document.getElementById('d1PasteBox').addEventListener('input', ()=>{ clearTimeout(window.__d1pt); window.__d1pt = setTimeout(()=> d1ApplyPaste(false), 400); });
+  // abre o pacote direto na página "Detalhe do pacote" do sistema, sempre na mesma aba ("meliPacote")
+  let d1ModoAbrir = false;
+  function d1AbrirNoSistema(id){ if(id) window.open(D1_MELI_URL + encodeURIComponent(id), 'meliPacote'); }
+  document.getElementById('btnD1OpenNext').addEventListener('click', ()=>{
+    d1ModoAbrir = true;
+    document.getElementById('btnD1NextId').click();
+    const id = document.getElementById('d1PId').value;
+    if(!id) return;
+    d1AbrirNoSistema(id);
+    setTimeout(()=>{ document.getElementById('d1PHint').textContent = 'ID ' + id + ' aberto no sistema — lá: Ctrl+A, Ctrl+C · aqui: cole no quadro e clique Salvar (o próximo já abre sozinho)'; }, 120);
+  });
   document.getElementById('btnD1NextId').addEventListener('click', ()=>{
     const id = d1NextPending(document.getElementById('d1PId').value);
     if(!id){ document.getElementById('d1PHint').textContent = 'todos os D-1 já têm última bipagem 🎉'; return; }
@@ -3870,7 +3884,8 @@
     // já prepara o próximo e mostra o que foi salvo
     document.getElementById('btnD1NextId').click();
     const nx = document.getElementById('d1PId').value;
-    setTimeout(()=>{ document.getElementById('d1PHint').textContent = '✓ ' + id + ' salvo (' + d1FmtDt(dt) + ' · ' + d1TitleCase(nome) + (st ? ' · ' + st : '') + ')' + (saiu ? ' — saiu do D-1' : '') + (nx ? ' — próximo ID ' + nx + ' já copiado' : ' — todos feitos 🎉'); }, 150);
+    if(d1ModoAbrir && nx) d1AbrirNoSistema(nx); // no modo "abrir no sistema" o próximo já abre na aba do sistema
+    setTimeout(()=>{ document.getElementById('d1PHint').textContent = '✓ ' + id + ' salvo (' + d1FmtDt(dt) + ' · ' + d1TitleCase(nome) + (st ? ' · ' + st : '') + ')' + (saiu ? ' — saiu do D-1' : '') + (nx ? (d1ModoAbrir ? ' — próximo ' + nx + ' já aberto no sistema' : ' — próximo ID ' + nx + ' já copiado') : ' — todos feitos 🎉'); }, 150);
   });
 
   document.getElementById('d1ReportBody').addEventListener('click', (e)=>{
