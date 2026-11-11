@@ -1323,19 +1323,16 @@
       </div>
       </div>
       <div class="actions-row" style="margin-top:12px;">
-        <span class="d1-pager">
+        <span class="d1-pager" style="display:none;">
           <button class="export-btn" id="btnD1Prev" type="button" title="página anterior">◀</button>
           <span id="d1PagerLbl">Página 1 de 1</span>
           <button class="export-btn" id="btnD1Next" type="button" title="próxima página">▶</button>
           <select id="d1PageSize" class="d1-filter" style="min-width:0;padding:4px 8px;" title="pacotes por imagem">
-            <option value="12">12 por imagem</option>
-            <option value="15" selected>15 por imagem</option>
-            <option value="20">20 por imagem</option>
-            <option value="0">tudo numa imagem</option>
+            <option value="0" selected>tudo numa imagem</option>
           </select>
         </span>
-        <button class="export-btn" id="btnD1ReportImg" type="button" disabled><span class="export-icon">🖼️</span> Copiar esta página (imagem)</button>
-        <button class="export-btn" id="btnD1ReportAll" type="button" disabled><span class="export-icon">🗂️</span> Gerar todas as páginas</button>
+        <button class="export-btn" id="btnD1ReportImg" type="button" disabled><span class="export-icon">🖼️</span> Copiar report (imagem única)</button>
+        <button class="export-btn" id="btnD1ReportAll" type="button" disabled style="display:none;"><span class="export-icon">🗂️</span> Gerar todas as páginas</button>
         <button class="export-btn" id="btnD1ReportTxt" type="button" disabled><span class="export-icon">💬</span> Copiar report (texto p/ WhatsApp)</button>
         <span class="export-hint" id="d1ReportHint"></span>
       </div>
@@ -2752,9 +2749,12 @@
   // ---------- export / share ----------
   async function captureElementBlob(elId){
     const el = document.getElementById(elId);
+    // escala automática: imagem nítida, mas sem passar do limite de tamanho do navegador (lista longa numa imagem só)
+    const w = Math.max(1, el.scrollWidth), h = Math.max(1, el.scrollHeight);
+    const sc = Math.max(1, Math.min(6, 16000 / w, 16000 / h, Math.sqrt(120000000 / (w * h))));
     const canvas = await html2canvas(el, {
       backgroundColor: '#EEF2F8',
-      scale: 6,
+      scale: sc,
       useCORS: true,
       logging: false,
       imageTimeout: 0,
@@ -3273,7 +3273,7 @@
 
   let d1Page = 0;
   let d1EditId = null;
-  function d1PageSize(){ const el = document.getElementById('d1PageSize'); return el ? Number(el.value) : 15; }
+  function d1PageSize(){ const el = document.getElementById('d1PageSize'); return 0; } // report sempre inteiro numa imagem só
   function d1PageCount(n){ const ps = d1PageSize(); return ps ? Math.max(1, Math.ceil(n / ps)) : 1; }
   function d1FillFilterOptions(){
     const all = d1Ids();
