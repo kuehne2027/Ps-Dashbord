@@ -825,6 +825,32 @@
   .d1-filters .d1-fcount{ margin-left:auto; font-size:12.5px; font-weight:700; color:#0B2545; align-self:center; }
   .d1-pager{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:#33415C; margin-right:6px; }
   .d1-pager .export-btn{ padding:6px 10px; }
+  /* ---- imagem do Report D-1 (layout próprio p/ WhatsApp: letra grande, em colunas) ---- */
+  #d1PrintArea{ position:fixed; left:-10000px; top:0; z-index:-1; }
+  .d1p{ background:#F6F8FC; padding:28px; font-family:'Inter', system-ui, -apple-system, sans-serif; color:#0F1B2D; box-sizing:border-box; }
+  .d1p-head{ display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; }
+  .d1p-title{ display:flex; align-items:center; gap:14px; }
+  .d1p-logo{ width:52px; height:52px; border-radius:14px; background:linear-gradient(135deg,#0B2545,#0B5FA5); color:#fff; font-weight:900; font-size:16px; display:flex; align-items:center; justify-content:center; }
+  .d1p-h1{ font-size:30px; font-weight:900; letter-spacing:-.02em; line-height:1.1; }
+  .d1p-sub{ font-size:16px; color:#475569; margin-top:4px; font-weight:600; }
+  .d1p-chips{ display:flex; gap:10px; align-items:center; }
+  .d1p-chip{ background:#fff; border:1px solid #E3E8F0; border-radius:999px; padding:9px 16px; font-size:17px; font-weight:700; color:#334155; }
+  .d1p-chip.dark{ background:#0B2545; color:#fff; border-color:#0B2545; }
+  .d1p-cols{ display:grid; gap:16px; align-items:start; }
+  .d1p-col{ background:#fff; border:1px solid #E3E8F0; border-radius:16px; overflow:hidden; }
+  .d1p-row{ display:grid; gap:12px; align-items:center; padding:11px 16px; border-top:1px solid #EEF2F7; }
+  .d1p-row:nth-child(even){ background:#FAFBFD; }
+  .d1p-th{ border-top:0; background:#EEF3FA !important; font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#475569; padding:11px 16px; }
+  .d1p-id{ font-family:'JetBrains Mono', ui-monospace, monospace; font-size:18px; font-weight:800; color:#0B2545; }
+  .d1p-who b{ display:block; font-size:17px; font-weight:800; line-height:1.2; }
+  .d1p-who small{ display:block; font-size:15px; color:#475569; font-weight:600; margin-top:2px; }
+  .d1p-tag{ display:inline-block; font-size:15px; font-weight:800; padding:5px 10px; border-radius:8px; white-space:nowrap; background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; }
+  .d1p-tag.st{ background:#ECFDF5; color:#047857; border-color:#A7F3D0; }
+  .d1p-tag.buf{ background:#FEF3C7; color:#92400E; border-color:#FDE68A; }
+  .d1p-tag.vol{ background:#F3E8FF; color:#7C3AED; border-color:#E9D5FF; }
+  .d1p-tag.none{ background:none; border:0; color:#94A3B8; }
+  .d1p-desc{ grid-column:1 / -1; font-size:15px; color:#334155; font-weight:600; margin-top:-4px; }
+  .d1p-foot{ margin-top:14px; font-size:14px; color:#64748B; font-weight:600; display:flex; justify-content:space-between; }
   .fg-tr{ display:grid; grid-template-columns:124px 220px 96px 120px 110px minmax(0,1fr); gap:16px; align-items:center; padding:11px 18px; border-top:1px solid #EEF2F7; }
   .fg-th{ border-top:0; background:#FAFBFD; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#64748B; padding:12px 18px; }
   .fg-tr{ position:relative; }
@@ -2751,13 +2777,15 @@
     const el = document.getElementById(elId);
     // escala automática: imagem nítida, mas sem passar do limite de tamanho do navegador (lista longa numa imagem só)
     const w = Math.max(1, el.scrollWidth), h = Math.max(1, el.scrollHeight);
-    const sc = Math.max(1, Math.min(6, 16000 / w, 16000 / h, Math.sqrt(120000000 / (w * h))));
+    const sc = Math.max(1, Math.min(elId === 'd1PrintArea' ? 2 : 6, 16000 / w, 16000 / h, Math.sqrt(120000000 / (w * h))));
     const canvas = await html2canvas(el, {
       backgroundColor: '#EEF2F8',
       scale: sc,
       useCORS: true,
       logging: false,
       imageTimeout: 0,
+      windowWidth: Math.max(document.documentElement.clientWidth, w + 40),
+      onclone: (doc) => { const c = doc.getElementById(elId); if(c && elId === 'd1PrintArea'){ c.style.left = '0px'; c.style.top = '0px'; c.style.position = 'absolute'; c.style.zIndex = '99999'; } },
       ignoreElements: (node) => !!(node.classList && node.classList.contains('no-print'))
     });
     return await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
@@ -3517,10 +3545,57 @@
     }
   });
   document.getElementById('btnD1ReportTxt').addEventListener('click', ()=> d1Copy(d1BuildText(), 'd1ReportHint', 'texto copiado — cole no WhatsApp'));
-  document.getElementById('btnD1ReportImg').addEventListener('click', ()=> exportImage({
-    elId: 'd1ReportArea', btnId: 'btnD1ReportImg', hintId: 'd1ReportHint',
+  // monta a imagem do report: todos os pacotes, letra grande, em 1/2/3 colunas pra imagem não ficar comprida
+  function d1BuildPrint(){
+    const ids = d1ReportIds();
+    const n = ids.length;
+    const cols = n <= 18 ? 1 : (n <= 60 ? 2 : 3);
+    const temTipo = ids.some(id => d1Detalhe(id));
+    const now = new Date();
+    const grid = '170px minmax(0,1fr) 110px 160px' + (temTipo ? ' 120px' : '');
+    const colW = temTipo ? 900 : 780;
+    const head = `<div class="d1p-row d1p-th" style="grid-template-columns:${grid}"><div>Pacote</div><div>Colaborador</div><div>Rota</div><div>Status</div>${temTipo ? '<div>Tipo</div>' : ''}</div>`;
+    const rowHtml = id => {
+      const r = d1Data[id] || {};
+      const mp = d1MovParts(r.dt);
+      const nome = (r.nome || r.dt) ? (d1NomeOf(r) || '—') : '';
+      const who = nome
+        ? `<div class="d1p-who"><b>${d1Esc(nome)}</b><small>${d1Esc(mp.date)}${mp.time ? ' · ' + d1Esc(mp.time) : ''}</small></div>`
+        : '<div class="d1p-who"><small>aguardando consulta</small></div>';
+      const rota = d1Rota(id), st = d1Status(id), tipo = d1Detalhe(id);
+      const stCls = st.cls === 'st' ? 'st' : (st.cls === 'buf' ? 'buf' : '');
+      return `<div class="d1p-row" style="grid-template-columns:${grid}">
+        <div class="d1p-id">${d1Esc(id)}</div>${who}
+        <div>${rota ? '<span class="d1p-tag">' + d1Esc(rota) + '</span>' : '<span class="d1p-tag none">—</span>'}</div>
+        <div>${st.label ? '<span class="d1p-tag ' + stCls + '">' + d1Esc(st.label) + '</span>' : '<span class="d1p-tag none">—</span>'}</div>
+        ${temTipo ? '<div>' + (tipo ? '<span class="d1p-tag vol">' + d1Esc(tipo) + '</span>' : '<span class="d1p-tag none">—</span>') + '</div>' : ''}
+        ${r.desc ? '<div class="d1p-desc">📝 ' + d1Esc(r.desc) + '</div>' : ''}
+      </div>`;
+    };
+    const per = Math.ceil(n / cols) || 1;
+    let colsHtml = '';
+    for(let c = 0; c < cols; c++){
+      const part = ids.slice(c * per, c * per + per);
+      if(!part.length) continue;
+      colsHtml += `<div class="d1p-col">${head}${part.map(rowHtml).join('')}</div>`;
+    }
+    let box = document.getElementById('d1PrintArea');
+    if(!box){ box = document.createElement('div'); box.id = 'd1PrintArea'; document.body.appendChild(box); }
+    box.style.width = (colW * cols + 16 * (cols - 1) + 56) + 'px';
+    box.innerHTML = `<div class="d1p">
+      <div class="d1p-head">
+        <div class="d1p-title"><span class="d1p-logo">K+N</span><div><div class="d1p-h1">Pacotes D-1</div><div class="d1p-sub">SRJ1 · última movimentação registrada no sistema</div></div></div>
+        <div class="d1p-chips"><span class="d1p-chip dark">${fmt(n)} pacotes</span><span class="d1p-chip">Atualizado ${now.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} às ${now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span></div>
+      </div>
+      <div class="d1p-cols" style="grid-template-columns:repeat(${Math.min(cols, Math.ceil(n / per) || 1)}, ${colW}px)">${colsHtml || '<div class="d1p-col"><div class="d1p-row">Nenhum pacote.</div></div>'}</div>
+      <div class="d1p-foot"><span>${fmt(n)} pacotes D-1</span><span>Kuehne+Nagel · Painel Operacional</span></div>
+    </div>`;
+    return box;
+  }
+  document.getElementById('btnD1ReportImg').addEventListener('click', ()=>{ d1BuildPrint(); exportImage({
+    elId: 'd1PrintArea', btnId: 'btnD1ReportImg', hintId: 'd1ReportHint',
     fileNamePrefix: 'report_d1', shareTitle: 'Report D-1'
-  }));
+  }); });
   // ---------- Consulta rápida: colar a página do sistema e extrair a última bipagem ----------
   const D1_MESES = {jan:1,fev:2,feb:2,mar:3,abr:4,apr:4,mai:5,may:5,jun:6,jul:7,ago:8,aug:8,set:9,sep:9,out:10,oct:10,nov:11,dez:12,dec:12};
   function d1Pad(n){ return String(n).padStart(2,'0'); }
