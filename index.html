@@ -1379,8 +1379,129 @@
   // este arquivo .html carrega os dados mais recentes automaticamente.
   const SUPABASE_URL = 'https://cnpcsovjomonctbggbac.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNucGNzb3Zqb21vbmN0YmdnYmFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NjE4NzUsImV4cCI6MjEwMjAzNzg3NX0.lpumXh7HmzmhUcBqNSAhaR3S7Cd6TFg5sivWybjsra4';
-  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const supabaseReal = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const SUPABASE_TABLE = 'painel_dados';
+
+  // ---------- reserva local (quando o banco online estiver bloqueado/fora) ----------
+  // Tudo que é salvo vai também pra este computador (IndexedDB). Se o Supabase
+  // responder erro (ex.: limite do plano gratuito), o painel lê e grava só aqui.
+  const LocalDB = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      const r = indexedDB.open('ps_dashbord_local', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('painel_dados', { keyPath: 'chave' });
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    }));
+    const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('painel_dados', mode); const st = t.objectStore('painel_dados'); const out = fn(st); t.oncomplete = () => res(out && out.result); t.onerror = () => rej(t.error); }); };
+    return {
+      get: async k => { try{ return await tx('readonly', st => st.get(k)) || null; }catch(_){ return null; } },
+      put: async row => { try{ const old = await LocalDB.get(row.chave) || {}; await tx('readwrite', st => st.put(Object.assign({}, old, row))); return true; }catch(_){ return false; } }
+    };
+  })();
+  // link /exec do Apps Script da planilha "Banco Painel Operacional"
+  const BANCO_SHEETS_URL_PADRAO = 'https://script.google.com/macros/s/AKfycbxN4LBj6XWRuCq2sFuO2ishJuDBwkQxhZIzvPUGNm_O3cHINblrOi7JmOw9MBAbfly3og/exec'; // mesmo banco do mega2026
+  function bancoSheetsUrl(){
+    let u = ''; try{ u = localStorage.getItem('bancoSheetsUrl') || ''; }catch(_){}
+    return (u || BANCO_SHEETS_URL_PADRAO).trim();
+  }
+  let bancoOnlineOk = true, bancoOnlineRetry = 0;
+  function avisoBancoLocal(motivo){
+    bancoOnlineOk = false; bancoOnlineRetry = Date.now() + 5*60*1000; // tenta o online de novo em 5 min
+    let el = document.getElementById('avisoBancoLocal');
+    if(!el){
+      el = document.createElement('div'); el.id = 'avisoBancoLocal';
+      el.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:9999;max-width:min(760px,calc(100vw - 32px));background:#FFFBEB;border:1px solid #F59E0B;color:#7C2D12;border-radius:10px;padding:9px 14px;font:600 12.5px/1.4 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.12);';
+      document.body.appendChild(el);
+    }
+    if(!bancoSheetsUrl()){
+      el.innerHTML = '⚠️ Banco (planilha) ainda não ligado — salvando só neste computador. <input id="bancoUrlIn" placeholder="cole o link /exec do Banco Painel Operacional" style="margin:6px 0 0;width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #F59E0B;border-radius:6px;font:inherit;font-weight:500;">';
+      const inp = el.querySelector('#bancoUrlIn');
+      inp.addEventListener('change', () => { const v = inp.value.trim(); if(!/script\.google\.com\/.*\/exec/.test(v)){ inp.style.borderColor = '#DC2626'; return; } try{ localStorage.setItem('bancoSheetsUrl', v); }catch(_){} location.reload(); });
+      return;
+    }
+    el.textContent = '⚠️ Banco (planilha) fora do ar (' + motivo + '). O painel está salvando e lendo só NESTE computador até ele voltar.';
+  }
+  function bancoErroMsg(e){ const m = String((e && (e.message || e.msg)) || e || ''); return /Failed to fetch|NetworkError/i.test(m) ? 'sem conexão' : (m.slice(0, 80) || 'sem conexão'); }
+
+  // imita o "supabaseClient.from(tabela)" usado no painel, com reserva local
+  function tabelaComReserva(){
+    const q = { op:'select', cols:'*', eq:null, inList:null, single:false, row:null };
+    const api = {
+      select(c){ q.cols = c || '*'; return api; },
+      eq(k, v){ q.eq = v; return api; },
+      in(k, v){ q.inList = v; return api; },
+      limit(){ return api; },
+      maybeSingle(){ q.single = true; return api; },
+      upsert(row){ q.op = 'upsert'; q.row = row; return api; },
+      delete(){ q.op = 'delete'; return api; },
+      then(ok, fail){ return run().then(ok, fail); }
+    };
+    async function remoto(){
+      // banco = planilha "Banco Painel Operacional" (Apps Script)
+      if(!bancoSheetsUrl()) throw new Error('link do banco (planilha) não configurado');
+      const url = bancoSheetsUrl();
+      const post = async corpo => {
+        const r = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(corpo), redirect:'follow' });
+        const j = await r.json(); if(j.erro) return { data:null, error:{ message:j.erro } }; return { data:null, error:null };
+      };
+      const get = async params => {
+        const r = await fetch(url + (url.includes('?') ? '&' : '?') + new URLSearchParams(Object.assign({ _: Date.now() }, params)).toString(), { redirect:'follow', cache:'no-store' });
+        const t = await r.text();
+        if(/^\s*</.test(t)) throw new Error('o link do banco abriu uma página em vez dos dados');
+        return JSON.parse(t);
+      };
+      if(q.op === 'upsert') return post({ acao:'set', chave:q.row.chave, filename:q.row.filename === undefined ? null : q.row.filename, conteudo:q.row.conteudo, atualizado_em:q.row.atualizado_em });
+      if(q.op === 'delete') return post({ acao:'del', chaves: q.inList || [q.eq] });
+      const keys = q.inList || (q.eq !== null ? [q.eq] : []);
+      const comConteudo = /conteudo|\*/.test(q.cols);
+      let linhas;
+      if(comConteudo){
+        const j = keys.length === 1 ? await get({ acao:'get', chave:keys[0] }) : await get({ acao:'getmany', chaves:keys.join(',') });
+        if(j.erro) return { data:null, error:{ message:j.erro } };
+        linhas = j.linhas || (j.linha ? [j.linha] : []);
+      } else {
+        const j = await get({ acao:'stamps', chaves:keys.join(',') });
+        if(j.erro) return { data:null, error:{ message:j.erro } };
+        linhas = j.linhas || [];
+      }
+      return { data: q.single ? (linhas[0] || null) : linhas, error:null };
+    }
+    async function local(){
+      if(q.op === 'delete'){ for(const k of (q.inList || [q.eq])) await LocalDB.put({ chave:k, conteudo:null, filename:null }); return { data:null, error:null }; }
+      if(q.op === 'upsert'){ const ok = await LocalDB.put(q.row); return { data:null, error: ok ? null : { message:'não consegui salvar neste computador' } }; }
+      const keys = q.inList || (q.eq !== null ? [q.eq] : []);
+      const rows = (await Promise.all(keys.map(k => LocalDB.get(k)))).filter(Boolean);
+      return { data: q.single ? (rows[0] || null) : rows, error: null };
+    }
+    async function run(){
+      if(q.op === 'upsert') await LocalDB.put(q.row); // sempre guarda uma cópia aqui
+      if(q.op === 'delete') await local();
+      if(!bancoOnlineOk && Date.now() < bancoOnlineRetry) return local();
+      try{
+        const r = await remoto();
+        if(r && r.error){ avisoBancoLocal(bancoErroMsg(r.error)); return local(); }
+        if(!bancoOnlineOk){ bancoOnlineOk = true; const el = document.getElementById('avisoBancoLocal'); if(el) el.remove(); }
+        // guarda o que veio do banco online pra usar se ele cair
+        if(q.op === 'select' && r && r.data){
+          const rows = Array.isArray(r.data) ? r.data : [r.data];
+          rows.forEach(row => { const k = row.chave || q.eq; if(k && row.conteudo !== undefined) LocalDB.put(Object.assign({ chave:k }, row)); });
+          if(q.single && !r.data){ const l = await local(); if(l.data) return l; }
+        }
+        return r;
+      }catch(e){ avisoBancoLocal(bancoErroMsg(e)); return local(); }
+    }
+    return api;
+  }
+  const supabaseClient = {
+    from(t){ return t === SUPABASE_TABLE ? tabelaComReserva() : supabaseReal.from(t); },
+    storage: { from(b){
+      const real = supabaseReal.storage.from(b);
+      return {
+        download: async p => { try{ return await real.download(p); }catch(e){ return { data:null, error:e }; } },
+        remove: async p => { try{ return await real.remove(p); }catch(e){ return { data:null, error:e }; } }
+      };
+    } }
+  };
   const STORAGE_BUCKET = 'painel-arquivos';
   const BASE1_STORAGE_PATH = 'base1.xlsx';
 
