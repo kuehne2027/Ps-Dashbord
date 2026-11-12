@@ -818,6 +818,14 @@
   .fg-group.done b{ background:#DCFCE7; }
   .fg-group.pend{ background:#FFF7ED; color:#B45309; }
   .fg-group.pend b{ background:#FFEDD5; }
+  .fg-group.velho{ background:#FEF2F2; color:#B91C1C; }
+  .fg-group.velho b{ background:#FEE2E2; }
+  .fg-tr.velho{ background:#FFFBFB; box-shadow:inset 3px 0 0 #DC2626; }
+  .fg-old{ display:inline-block; margin-top:3px; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:999px; background:#FEE2E2; color:#B91C1C; }
+  .fg-old.ok{ background:#E0F2FE; color:#0369A1; }
+  .d1p-old{ color:#B91C1C !important; }
+  .fg-tr{ cursor:pointer; }
+  .fg-tr:hover{ background:#F8FAFD; }
   .fg-onlyscreen{ margin-left:auto; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:none; opacity:.7; }
   .d1-filters{ display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; background:#fff; border:1px solid #D7E0EE; border-radius:12px; padding:10px 12px; margin:0 0 12px; }
   .d1-filters label{ display:flex; flex-direction:column; gap:3px; font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#5B6B85; }
@@ -854,7 +862,7 @@
   .fg-tr{ display:grid; grid-template-columns:124px 220px 96px 120px 110px minmax(0,1fr); gap:16px; align-items:center; padding:11px 18px; border-top:1px solid #EEF2F7; }
   .fg-th{ border-top:0; background:#FAFBFD; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#64748B; padding:12px 18px; }
   .fg-tr{ position:relative; }
-  .fg-edit-btn{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:28px; height:28px; border-radius:8px; border:1px solid #D7E0EE; background:#fff; color:#0B5FA5; font-size:13px; cursor:pointer; opacity:.35; transition:opacity .15s; }
+  .fg-edit-btn{ position:absolute; right:8px; top:50%; transform:translateY(-50%); width:32px; height:32px; border-radius:8px; border:1px solid #BFD3EA; background:#fff; color:#0B5FA5; font-size:15px; cursor:pointer; opacity:.85; transition:opacity .15s; }
   .fg-tr:hover .fg-edit-btn, .fg-tr.editing .fg-edit-btn{ opacity:1; }
   .fg-edit-btn:hover{ border-color:#0B5FA5; background:#EAF2FB; }
   .fg-tr.editing{ background:#F5F9FF; }
@@ -3027,9 +3035,8 @@
   const D1_SYS_ST = [
     { k:'No carrinho',     re:/(?:no|em|dentro\s+do)\s+carrinho|in[_\s]*cart\b/i, cls:'st', res:true },
     { k:'Pronto pra rota', re:/pronto\s+(?:para|pra|p\/)?\s*(?:a\s+)?rota|ready[_\s]*for[_\s]*route|route[_\s]*ready/i, cls:'st', res:true },
-    { k:'Pra despachar',   re:/(?:para|pra|a)\s+despachar|ready[_\s]*to[_\s]*ship|staged/i, cls:'st' },
+    { k:'Pra despachar',   re:/(?:para|pra|a)\s+despachar|ready[_\s]*to[_\s]*ship|staged|sorting|triagem/i, cls:'st' },
     { k:'Despachado',      re:/despachad|expedid|dispatched|shipped/i, cls:'st' },
-    { k:'Sorting',         re:/sorting|triagem/i, cls:'srt' },
     { k:'Buffered',        re:/buffered|em\s+buffer/i, cls:'buf' },
     { k:'A caminho',       re:/caminho\s+(?:para|pra)\s+a\s+esta|on[_\s]way|em\s+tr[aâ]nsito|in[_\s]transit/i, cls:'way' },
     { k:'Na estação',      re:/na\s+esta[cç][aã]o|at[_\s]station/i, cls:'' },
@@ -3165,16 +3172,17 @@
       const rows = [];
       const showDone = !!(document.getElementById('d1ShowDone') || {}).checked;
       let nShown = 0, nHidden = 0;
-      ids.forEach(id => {
+      d1DoneFirst(ids.filter(d1Rechecar)).concat(ids.filter(id => !d1Rechecar(id))).forEach(id => {
         const r = d1Data[id] || {};
         if(q && !(id.toLowerCase().includes(q) || (r.nome||'').toLowerCase().includes(q) || (r.desc||'').toLowerCase().includes(q))) return;
         const done = r.dt && r.nome;
         // já preenchido (data + nome) sai daqui e fica só no report, que é editável
-        if(done && !showDone && !q){ nHidden++; return; }
+        const rechk = d1Rechecar(id);
+        if(done && !rechk && !showDone && !q){ nHidden++; return; }
         nShown++;
-        rows.push(`<tr class="${done ? 'done' : ''}" data-id="${d1Esc(id)}">
+        rows.push(`<tr class="${done && !rechk ? 'done' : ''}" data-id="${d1Esc(id)}"${rechk ? ' style="background:#FEF2F2;"' : ''}>
           <td>${nShown}</td>
-          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
+          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk ? '<span class="fg-old">⟳ dia anterior · consultar de novo</span>' : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
           <td><input type="datetime-local" data-f="dt" value="${d1Esc(r.dt||'')}"></td>
           <td><input type="text" data-f="nome" list="d1Nomes" placeholder="${r.uid ? d1Esc('Groot ' + r.uid + ' · sem nome') : 'nome de quem bipou'}" value="${d1Esc(r.nome || d1HcName(r.uid) || '')}" ${r.uid && !r.nome ? 'style="border-color:#F59E0B;background:#FFFBEB;"' : ''}></td>
           <td><input type="text" data-f="desc" placeholder="vem da query (detalhe do pacote)" value="${d1Esc(r.desc||'')}"></td>
@@ -3231,11 +3239,11 @@
     return rec && rec.rota ? rec.rota : '';
   }
   // status do pacote na base do ciclo (planification): "at_station|sorting" -> "Sorting"
-  const D1_ST_LABEL = { sorting:'Sorting', buffered:'Buffered', at_station:'Na estação', on_way:'A caminho', in_transit:'Em trânsito', delivered:'Entregue', picked:'Separado', staged:'Staged', ready_to_ship:'Pronto p/ envio', shipped:'Expedido', not_delivered:'Não entregue', returned:'Devolvido' };
+  const D1_ST_LABEL = { sorting:'Pra despachar', buffered:'Buffered', at_station:'Na estação', on_way:'A caminho', in_transit:'Em trânsito', delivered:'Entregue', picked:'Separado', staged:'Staged', ready_to_ship:'Pronto p/ envio', shipped:'Expedido', not_delivered:'Não entregue', returned:'Devolvido' };
   function d1Status(id){
     // o report mostra só o status que veio da página colada do sistema
     const stTxt = d1Data[id] && d1Data[id].st ? String(d1Data[id].st) : '';
-    if(stTxt){ const sys = d1SysSt(stTxt); return { label: stTxt, cls: sys ? sys.cls : '', raw: stTxt, sys: true }; }
+    if(stTxt){ const sys = d1SysSt(stTxt); return { label: sys ? sys.k : stTxt, cls: sys ? sys.cls : '', raw: stTxt, sys: true }; }
     return { label:'', cls:'' };
     const raw = (base1Data && base1Data.statusMap && base1Data.statusMap.get(id)) || '';
     if(!raw) return { label:'', cls:'' };
@@ -3297,7 +3305,28 @@
     return d1DoneFirst(ids);
   }
   function d1Done(id){ const r = d1Data[id] || {}; return !!(r.dt || r.nome); }
-  function d1DoneFirst(ids){ return ids.filter(d1Done).concat(ids.filter(id => !d1Done(id))); }
+  // última movimentação de um dia anterior a hoje -> precisa consultar de novo pra ver se mexeu
+  function d1Hoje(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+  function d1Velho(id){ const r = d1Data[id] || {}; return !!(r.dt && String(r.dt).slice(0,10) < d1Hoje()); }
+  const D1_RECHK_MS = 2*36e5; // depois de reconsultado, volta a pedir nova consulta em 2h
+  function d1Rechecar(id){
+    if(!d1Velho(id)) return false;
+    const r = d1Data[id] || {}; const t = r.rev ? new Date(r.rev).getTime() : 0;
+    return !t || (Date.now() - t) > D1_RECHK_MS;
+  }
+  function d1RevTxt(id){
+    const r = d1Data[id] || {};
+    if(!r.rev) return '';
+    const d = new Date(r.rev); if(isNaN(d)) return '';
+    return d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  }
+  function d1Grupo(id){ return d1Velho(id) ? 'velho' : (d1Done(id) ? 'done' : 'pend'); }
+  // ordem: dia anterior (consultar de novo) no topo, depois já consultados, depois aguardando
+  function d1DoneFirst(ids){
+    const v = ids.filter(d1Velho);
+    const v1 = v.filter(d1Rechecar), v2 = v.filter(id => !d1Rechecar(id));
+    return v1.concat(v2, ids.filter(id => d1Done(id) && !d1Velho(id)), ids.filter(id => !d1Done(id)));
+  }
 
   let d1Page = 0;
   let d1EditId = null;
@@ -3335,17 +3364,20 @@
     document.getElementById('d1ReportWhen').textContent = 'Atualizado ' + now.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) + ' às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
     document.getElementById('d1rTotal').textContent = fmt(fullIds.length);
     document.getElementById('d1FCount').textContent = fullIds.length === all.length ? fmt(all.length) + ' pacotes no report' : fmt(fullIds.length) + ' de ' + fmt(all.length) + ' pacotes (filtrado)';
-    const nDone = fullIds.filter(d1Done).length, nPend = fullIds.length - nDone;
+    const nVelho = fullIds.filter(d1Velho).length;
+    const nDone = fullIds.filter(d1Done).length - nVelho, nPend = fullIds.length - nDone - nVelho;
     let lastGroup = null;
     // não redesenha enquanto alguém está editando uma linha do report
     const ae = document.activeElement;
     if(d1EditId && ae && ae.closest && ae.closest('.fg-edit')) return;
     document.getElementById('d1ReportBody').innerHTML = ids.map(id => {
       const r = d1Data[id] || {};
-      const g = d1Done(id) ? 'done' : 'pend';
+      const g = d1Grupo(id);
       let sep = '';
       if(g !== lastGroup){
-        sep = g === 'done'
+        sep = g === 'velho'
+          ? `<div class="fg-group velho no-print">⟳ Última movimentação de dia anterior · consultar de novo <b>${fmt(nVelho)}</b> <span class="fg-onlyscreen">só na tela · não sai na imagem</span></div>`
+          : g === 'done'
           ? `<div class="fg-group done no-print">✓ Já consultados <b>${fmt(nDone)}</b> <span class="fg-onlyscreen">só na tela · não sai na imagem</span></div>`
           : `<div class="fg-group pend no-print">● Aguardando consulta <b>${fmt(nPend)}</b> <span class="fg-onlyscreen">só na tela · não sai na imagem</span></div>`;
         lastGroup = g;
@@ -3356,7 +3388,10 @@
       if(r.nome || r.dt){
         const nome = d1NomeOf(r) || '—';
         const av = (r.nome || d1HcName(r.uid)) ? `<span class="fg-av" style="background:${d1AvColor(nome)}">${d1Esc(d1Initials(nome))}</span>` : '';
-        mov = `<div class="fg-mov">${av}<div class="fg-who"><b>${d1Esc(nome)}</b><small>${d1Esc(mp.date)}${mp.time ? ' · ' + d1Esc(mp.time) : ''}</small></div></div>`;
+        const old = d1Velho(id)
+          ? (d1Rechecar(id) ? '<span class="fg-old no-print">⟳ consultar de novo</span>' : '<span class="fg-old ok no-print">reconsultado ' + d1Esc(d1RevTxt(id)) + ' · sem movimento</span>')
+          : '';
+        mov = `<div class="fg-mov">${av}<div class="fg-who"><b>${d1Esc(nome)}</b><small${d1Velho(id) ? ' style="color:#B91C1C;font-weight:700;"' : ''}>${d1Esc(mp.date)}${mp.time ? ' · ' + d1Esc(mp.time) : ''}</small>${old}</div></div>`;
       } else {
         mov = '<span class="fg-wait">● aguardando consulta</span>';
       }
@@ -3375,7 +3410,7 @@
             <button type="button" class="export-btn" data-act="reopen" title="limpa data e nome e devolve pra lista de consulta">↩ Voltar pra consulta</button>
           </div>
         </div>` : '';
-      return sep + `<div class="fg-tr${editing ? ' editing' : ''}" data-id="${d1Esc(id)}">
+      return sep + `<div class="fg-tr${editing ? ' editing' : ''}${d1Velho(id) ? ' velho' : ''}" data-id="${d1Esc(id)}" title="clique pra editar">
         <button type="button" class="fg-edit-btn no-print" data-edit="${d1Esc(id)}" title="editar este pacote">✎</button>
         <div class="fg-id">${d1Esc(id)}</div>
         <div>${mov}</div>
@@ -3560,7 +3595,7 @@
       const mp = d1MovParts(r.dt);
       const nome = (r.nome || r.dt) ? (d1NomeOf(r) || '—') : '';
       const who = nome
-        ? `<div class="d1p-who"><b>${d1Esc(nome)}</b><small>${d1Esc(mp.date)}${mp.time ? ' · ' + d1Esc(mp.time) : ''}</small></div>`
+        ? `<div class="d1p-who"><b>${d1Esc(nome)}</b><small${d1Velho(id) ? ' class="d1p-old"' : ''}>${d1Esc(mp.date)}${mp.time ? ' · ' + d1Esc(mp.time) : ''}</small></div>`
         : '<div class="d1p-who"><small>aguardando consulta</small></div>';
       const rota = d1Rota(id), st = d1Status(id), tipo = d1Detalhe(id);
       const stCls = st.cls === 'st' ? 'st' : (st.cls === 'buf' ? 'buf' : '');
@@ -3815,6 +3850,7 @@
     const ids = d1Ids();
     const start = after ? ids.indexOf(after) + 1 : 0;
     for(let k=0;k<ids.length;k++){ const id = ids[(start + k) % ids.length]; const r = d1Data[id] || {}; if(!(r.dt && r.nome)) return id; }
+    for(let k=0;k<ids.length;k++){ const id = ids[(start + k) % ids.length]; if(d1Rechecar(id)) return id; }
     return '';
   }
   function d1MarkFound(el, ok){ el.classList.toggle('found', !!ok); }
@@ -3935,7 +3971,7 @@
   });
   document.getElementById('btnD1NextId').addEventListener('click', ()=>{
     const id = d1NextPending(document.getElementById('d1PId').value);
-    if(!id){ document.getElementById('d1PHint').textContent = 'todos os D-1 já têm última bipagem 🎉'; return; }
+    if(!id){ document.getElementById('d1PHint').textContent = 'todos os D-1 consultados (e os de dia anterior já reconsultados) 🎉'; return; }
     d1FillPasteIdSelect(id);
     d1Copy(id, 'd1PHint', 'ID ' + id + ' copiado — cole na busca do sistema');
     document.getElementById('d1PasteBox').value = '';
@@ -3954,6 +3990,7 @@
     if(nome) d1SetField(id, 'nome', nome);
     const st = document.getElementById('d1PSt').value.trim();
     if(st || (d1Data[id] && d1Data[id].st)) d1SetField(id, 'st', st);
+    d1SetField(id, 'rev', new Date().toISOString());
     const saiu = d1Resolved(id);
     renderD1Tab();
     // já prepara o próximo e mostra o que foi salvo
@@ -3964,7 +4001,10 @@
   });
 
   document.getElementById('d1ReportBody').addEventListener('click', (e)=>{
-    const eb = e.target.closest && e.target.closest('[data-edit]');
+    let eb = e.target.closest && e.target.closest('[data-edit]');
+    if(!eb && e.target.closest && !e.target.closest('.fg-edit') && !e.target.closest('a,button,input')){
+      const tr = e.target.closest('.fg-tr'); if(tr) eb = { dataset:{ edit: tr.dataset.id } };
+    }
     if(eb){
       d1EditId = d1EditId === eb.dataset.edit ? null : eb.dataset.edit;
       renderD1Report();
@@ -3982,6 +4022,7 @@
         if(inp.dataset.e === 'nome' && v) v = d1TitleCase(v);
         if(v !== (r[inp.dataset.e] || '')) d1SetField(id, inp.dataset.e, v);
       });
+      d1SetField(id, 'rev', new Date().toISOString());
     } else if(act === 'reopen'){
       d1SetField(id, 'dt', ''); d1SetField(id, 'nome', '');
     }
