@@ -1280,6 +1280,7 @@
       <div class="d1-toolbar">
         <button class="export-btn" id="btnD1CopyLines" type="button" disabled><span class="export-icon">📄</span> Copiar IDs (um por linha)</button>
         <button class="export-btn" id="btnD1CopyQuery" type="button" disabled><span class="export-icon">🧾</span> Copiar IDs p/ query (separados por vírgula)</button>
+        <button class="export-btn" id="btnD1Rodada" type="button" disabled title="coloca todos os D-1 atuais de volta na lista de cima pra consultar de novo (o que já foi preenchido continua no report)"><span class="export-icon">🔄</span> Nova consulta de todos os D-1 (<b id="d1RodN">0</b>)</button>
         <button class="export-btn" id="btnD1CopyOld" type="button" disabled title="IDs com última movimentação de dia anterior, prontos pra uma nova consulta"><span class="export-icon">🔁</span> Copiar IDs com data passada (<b id="d1OldN">0</b>)</button>
         <button class="export-btn" id="btnD1Import" type="button" disabled><span class="export-icon">📥</span> Importar resultado da query</button>
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
@@ -3222,17 +3223,18 @@
       const rows = [];
       const showDone = !!(document.getElementById('d1ShowDone') || {}).checked;
       let nShown = 0, nHidden = 0;
-      d1DoneFirst(ids.filter(d1Velho)).concat(ids.filter(id => !d1Velho(id))).forEach(id => {
+      const topo = id => d1Velho(id) || d1NaRodada(id);
+      d1DoneFirst(ids.filter(topo)).concat(ids.filter(id => !topo(id))).forEach(id => {
         const r = d1Data[id] || {};
         if(q && !(id.toLowerCase().includes(q) || (r.nome||'').toLowerCase().includes(q) || (r.desc||'').toLowerCase().includes(q))) return;
         const done = r.dt && r.nome;
         // já preenchido (data + nome) sai daqui e fica só no report, que é editável
-        const rechk = d1Velho(id); // data de dia anterior: fica sempre na lista pra consultar de novo
+        const rechk = d1Velho(id) || d1NaRodada(id); // data de dia anterior ou nova rodada: fica na lista pra consultar de novo
         if(done && !rechk && !showDone && !q){ nHidden++; return; }
         nShown++;
         rows.push(`<tr class="${done && !rechk ? 'done' : ''}" data-id="${d1Esc(id)}"${rechk ? ' style="background:#FEF2F2;"' : ''}>
           <td>${nShown}</td>
-          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk ? (d1Rechecar(id) ? '<span class="fg-old">⟳ dia anterior · consultar de novo</span>' : '<span class="fg-old">⟳ dia anterior · reconsultado ' + d1Esc(d1RevTxt(id)) + ' sem movimento · consultar de novo</span>') : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
+          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk && !d1Velho(id) ? '<span class="fg-old">🔄 nova consulta</span>' : ''}${rechk && d1Velho(id) ? (d1Rechecar(id) ? '<span class="fg-old">⟳ dia anterior · consultar de novo</span>' : '<span class="fg-old">⟳ dia anterior · reconsultado ' + d1Esc(d1RevTxt(id)) + ' sem movimento · consultar de novo</span>') : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
           <td><input type="datetime-local" data-f="dt" value="${d1Esc(r.dt||'')}"></td>
           <td><input type="text" data-f="nome" list="d1Nomes" placeholder="${r.uid ? d1Esc('Groot ' + r.uid + ' · sem nome') : 'nome de quem bipou'}" value="${d1Esc(r.nome || d1HcName(r.uid) || '')}" ${r.uid && !r.nome ? 'style="border-color:#F59E0B;background:#FFFBEB;"' : ''}></td>
           <td><input type="text" data-f="desc" placeholder="vem da query (detalhe do pacote)" value="${d1Esc(r.desc||'')}"></td>
@@ -3245,7 +3247,7 @@
     }
 
     let comMov = 0, comDesc = 0, pend = 0;
-    ids.forEach(id => { const r = d1Data[id] || {}; if(r.dt && r.nome) comMov++; else pend++; if(r.desc) comDesc++; });
+    ids.forEach(id => { const r = d1Data[id] || {}; if(r.dt && r.nome && !d1NaRodada(id)) comMov++; else pend++; if(r.desc) comDesc++; });
     document.getElementById('d1Total').textContent = fmt(ids.length);
     if(document.activeElement !== document.getElementById('d1PId')) d1FillPasteIdSelect(document.getElementById('d1PId').value);
     document.getElementById('d1ComMov').textContent = fmt(comMov);
@@ -3255,6 +3257,8 @@
       const nOld = d1VelhosParaConsulta().length;
       ['d1OldN','d1OldN2'].forEach(x => { const el = document.getElementById(x); if(el) el.textContent = fmt(nOld); });
       ['btnD1CopyOld','btnD1ReportOld'].forEach(x => { const el = document.getElementById(x); if(el) el.disabled = !nOld; });
+      const rn = document.getElementById('d1RodN'); if(rn) rn.textContent = fmt(ids.length);
+      const rb = document.getElementById('btnD1Rodada'); if(rb) rb.disabled = !ids.length;
     }catch(e){}
     // progresso: o que já analisei (data + quem bipou) e o que falta, contando também os que analisei e já saíram do D-1
     try{
@@ -3387,6 +3391,9 @@
     return !t || (Date.now() - t) > D1_RECHK_MS;
   }
   // IDs com última movimentação de dia anterior que ainda não foram reconsultados (nas últimas 2h)
+  // nova rodada: todos os D-1 já consultados antes do clique voltam pra lista de cima até serem consultados de novo
+  function d1Rodada(){ try{ return localStorage.getItem('d1-rodada-' + d1CicloAtual()) || ''; }catch(e){ return ''; } }
+  function d1NaRodada(id){ const t = d1Rodada(); if(!t) return false; const r = d1Data[id] || {}; return !!(r.dt && r.nome) && String(r.upd || '') < t; }
   function d1VelhosParaConsulta(){ const v = d1Ids().filter(d1Velho); return v.filter(d1Rechecar).concat(v.filter(id => !d1Rechecar(id))); }
   function d1RevTxt(id){
     const r = d1Data[id] || {};
@@ -3568,6 +3575,15 @@
 
   document.getElementById('btnD1CopyLines').addEventListener('click', ()=> d1Copy(d1Ids().join('\n'), 'd1Hint', d1Ids().length + ' IDs copiados (um por linha)'));
   document.getElementById('btnD1CopyQuery').addEventListener('click', ()=> d1Copy(d1Ids().join(','), 'd1Hint', d1Ids().length + ' IDs copiados separados por vírgula'));
+  document.getElementById('btnD1Rodada').addEventListener('click', ()=>{
+    const n = d1Ids().length; if(!n) return;
+    if(!confirm('Colocar os ' + n + ' pacotes D-1 de volta na lista pra consultar de novo? O que já foi preenchido continua no report até você atualizar.')) return;
+    try{ localStorage.setItem('d1-rodada-' + d1CicloAtual(), new Date().toISOString()); }catch(e){}
+    renderD1Tab();
+    try{ renderD1Report(); }catch(e){}
+    const h = document.getElementById('d1Hint'); if(h) h.textContent = n + ' pacotes D-1 disponíveis pra nova consulta';
+    window.scrollTo({ top: document.getElementById('d1Prog').getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+  });
   ['btnD1CopyOld','btnD1ReportOld'].forEach(b => document.getElementById(b).addEventListener('click', ()=>{
     const ids = d1VelhosParaConsulta();
     if(!ids.length) return;
@@ -3928,7 +3944,7 @@
   function d1NextPending(after){
     const ids = d1Ids();
     const start = after ? ids.indexOf(after) + 1 : 0;
-    for(let k=0;k<ids.length;k++){ const id = ids[(start + k) % ids.length]; const r = d1Data[id] || {}; if(!(r.dt && r.nome)) return id; }
+    for(let k=0;k<ids.length;k++){ const id = ids[(start + k) % ids.length]; const r = d1Data[id] || {}; if(!(r.dt && r.nome) || d1NaRodada(id)) return id; }
     for(let k=0;k<ids.length;k++){ const id = ids[(start + k) % ids.length]; if(d1Rechecar(id)) return id; }
     return '';
   }
