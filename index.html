@@ -1287,7 +1287,7 @@
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
         <span class="export-hint" id="d1FaltWhen"></span>
-        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 10h30</span>
+        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h</span>
         <button class="export-btn" id="btnD1Zerar" type="button" title="zera tudo da Análise D-1: datas, nomes, status, descrições, query de bipagens e a nova consulta (para todos). Os nomes do headcount continuam." style="color:#B91C1C;border-color:#FCA5A5;"><span class="export-icon">🧹</span> Zerar tudo (D-1)</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
         <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
@@ -3086,13 +3086,13 @@
   const D1_SYS_ST = [
     { k:'No carrinho',     re:/(?:no|em|dentro\s+do)\s+carrinho|in[_\s]*cart\b/i, cls:'st', res:true },
     { k:'Pronto pra rota', re:/pronto\s+(?:para|pra|p\/)?\s*(?:a\s+)?rota|ready[_\s]*for[_\s]*route|route[_\s]*ready/i, cls:'st', res:true },
-    { k:'Pra despachar',   re:/(?:para|pra|a)\s+despachar|ready[_\s]*to[_\s]*ship|staged|sorting|triagem/i, cls:'st' },
-    { k:'Despachado',      re:/despachad|expedid|dispatched|shipped/i, cls:'st' },
+    { k:'Pra despachar',   re:/(?:para|pra|a)\s+despachar|ready[_\s]*to[_\s]*ship|staged|sorting|triagem/i, cls:'st', res:true },
+    { k:'Despachado',      re:/despachad|expedid|dispatched|shipped/i, cls:'st', res:true },
     { k:'Buffered',        re:/buffered|em\s+buffer/i, cls:'buf' },
     { k:'A caminho',       re:/caminho\s+(?:para|pra)\s+a\s+esta|on[_\s]way|em\s+tr[aâ]nsito|in[_\s]transit/i, cls:'way' },
     { k:'Na estação',      re:/na\s+esta[cç][aã]o|at[_\s]station/i, cls:'' },
     { k:'Não entregue',    re:/n[aã]o\s+entregue|not[_\s]delivered/i, cls:'' },
-    { k:'Entregue',        re:/(?<!n[aã]o\s)entregue|(?<!not[_\s])delivered/i, cls:'st' },
+    { k:'Entregue',        re:/(?<!n[aã]o\s)entregue|(?<!not[_\s])delivered/i, cls:'st', res:true },
     { k:'Devolvido',       re:/devolvid|returned/i, cls:'' },
     { k:'Extraviado',      re:/extraviad|\blost\b/i, cls:'' },
     { k:'Avariado',        re:/avariad|danificad|damaged/i, cls:'' }
