@@ -3222,17 +3222,17 @@
       const rows = [];
       const showDone = !!(document.getElementById('d1ShowDone') || {}).checked;
       let nShown = 0, nHidden = 0;
-      d1DoneFirst(ids.filter(d1Rechecar)).concat(ids.filter(id => !d1Rechecar(id))).forEach(id => {
+      d1DoneFirst(ids.filter(d1Velho)).concat(ids.filter(id => !d1Velho(id))).forEach(id => {
         const r = d1Data[id] || {};
         if(q && !(id.toLowerCase().includes(q) || (r.nome||'').toLowerCase().includes(q) || (r.desc||'').toLowerCase().includes(q))) return;
         const done = r.dt && r.nome;
         // já preenchido (data + nome) sai daqui e fica só no report, que é editável
-        const rechk = d1Rechecar(id);
+        const rechk = d1Velho(id); // data de dia anterior: fica sempre na lista pra consultar de novo
         if(done && !rechk && !showDone && !q){ nHidden++; return; }
         nShown++;
         rows.push(`<tr class="${done && !rechk ? 'done' : ''}" data-id="${d1Esc(id)}"${rechk ? ' style="background:#FEF2F2;"' : ''}>
           <td>${nShown}</td>
-          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk ? '<span class="fg-old">⟳ dia anterior · consultar de novo</span>' : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
+          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk ? (d1Rechecar(id) ? '<span class="fg-old">⟳ dia anterior · consultar de novo</span>' : '<span class="fg-old">⟳ dia anterior · reconsultado ' + d1Esc(d1RevTxt(id)) + ' sem movimento · consultar de novo</span>') : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
           <td><input type="datetime-local" data-f="dt" value="${d1Esc(r.dt||'')}"></td>
           <td><input type="text" data-f="nome" list="d1Nomes" placeholder="${r.uid ? d1Esc('Groot ' + r.uid + ' · sem nome') : 'nome de quem bipou'}" value="${d1Esc(r.nome || d1HcName(r.uid) || '')}" ${r.uid && !r.nome ? 'style="border-color:#F59E0B;background:#FFFBEB;"' : ''}></td>
           <td><input type="text" data-f="desc" placeholder="vem da query (detalhe do pacote)" value="${d1Esc(r.desc||'')}"></td>
@@ -3387,7 +3387,7 @@
     return !t || (Date.now() - t) > D1_RECHK_MS;
   }
   // IDs com última movimentação de dia anterior que ainda não foram reconsultados (nas últimas 2h)
-  function d1VelhosParaConsulta(){ return d1Ids().filter(d1Rechecar); }
+  function d1VelhosParaConsulta(){ const v = d1Ids().filter(d1Velho); return v.filter(d1Rechecar).concat(v.filter(id => !d1Rechecar(id))); }
   function d1RevTxt(id){
     const r = d1Data[id] || {};
     if(!r.rev) return '';
