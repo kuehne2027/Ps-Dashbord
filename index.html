@@ -2281,6 +2281,7 @@
   // ou pelo status consultado na Análise D-1) e soma esses no card No Carrinho
   function refreshD1Card(){
     const b = lastCardBase; if(!b) return;
+    if(typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
     let d1 = 0, sairam = 0;
     for(const id of b.d1Ids){
       let saiu = false;
@@ -2353,8 +2354,8 @@
     try{ renderD1Tab(); }catch(e){ console.warn('Análise D-1:', e); }
 
     lastCardBase = {totalGeral, onWay, recebido, noCarrinho, d1Ids: d1Ids.slice()};
-    refreshD1Card();
     renderOrigemChart();
+    refreshD1Card();
     renderEarlyTable();
     renderNaoAtreladosTable(allRows);
     renderIlhasTable(recebidoRows);
