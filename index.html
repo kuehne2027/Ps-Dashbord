@@ -1287,7 +1287,7 @@
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
         <span class="export-hint" id="d1FaltWhen"></span>
-        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h</span>
+        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h05</span>
         <button class="export-btn" id="btnD1Zerar" type="button" title="zera tudo da Análise D-1: datas, nomes, status, descrições, query de bipagens e a nova consulta (para todos). Os nomes do headcount continuam." style="color:#B91C1C;border-color:#FCA5A5;"><span class="export-icon">🧹</span> Zerar tudo (D-1)</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
         <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
@@ -2975,7 +2975,7 @@
   function buildExtractWorkbook(){
     const wb = XLSX.utils.book_new();
 
-    const d1Data = [['ID do Pacote'], ...lastMetricIds.d1.map(id => [id])];
+    const d1Data = [['ID do Pacote'], ...d1CardIds().map(id => [id])]; // mesmos do card D-1
     const onWayData = [['ID do Pacote'], ...lastMetricIds.onWay.map(id => [id])];
     const recebidoData = [['ID do Pacote'], ...lastMetricIds.recebido.map(id => [id])];
 
@@ -3061,6 +3061,8 @@
     return !/caminho/.test(loc);
   }
   function d1AllD1(){ return (lastMetricIds && lastMetricIds.d1) ? lastMetricIds.d1.slice() : []; }
+  // os mesmos pacotes contados no card D-1 (tira os que já foram pro carrinho / rota / despachar)
+  function d1CardIds(){ return d1AllD1().filter(id => { try{ return !(d1ProcPelaBase(id) || d1Resolved(id)); }catch(e){ return true; } }); }
   // localização do CSV de faltantes indicando que o pacote já foi processado
   const D1_LOC_PROC = /carrinho|pronto\s*(?:para|pra|p\/)?\s*(?:a\s+)?rota|despach|expedid|entregue|in[_\s]*cart|ready/i;
   function d1ProcPelaBase(id){
@@ -3359,7 +3361,7 @@
     return { date: m[3] + '/' + m[2], time: m[4] ? (m[4] + ':' + m[5]) : '' };
   }
   function d1ReportIds(){
-    let ids = d1Ids();
+    let ids = d1CardIds(); // report = os mesmos pacotes do card D-1
     const v = x => (document.getElementById(x) || {}).value || '';
     const fSit = v('d1FSit'), fRota = v('d1FRota'), fSt = v('d1FStatus'), fTipo = v('d1FTipo'), fColab = v('d1FColab');
     const fTxt = v('d1FText').trim().toLowerCase();
@@ -3425,7 +3427,7 @@
   function d1PageSize(){ const el = document.getElementById('d1PageSize'); return 0; } // report sempre inteiro numa imagem só
   function d1PageCount(n){ const ps = d1PageSize(); return ps ? Math.max(1, Math.ceil(n / ps)) : 1; }
   function d1FillFilterOptions(){
-    const all = d1Ids();
+    const all = d1CardIds();
     const fill = (elId, values, firstLabel) => {
       const el = document.getElementById(elId); if(!el) return;
       const cur = el.value;
@@ -3438,7 +3440,7 @@
     fill('d1FColab', all.map(id => d1NomeOf(d1Data[id] || {})), 'Todos');
   }
   function renderD1Report(){
-    const all = d1Ids();
+    const all = d1CardIds();
     if(!document.activeElement || !document.activeElement.closest || !document.activeElement.closest('#d1Filters')) d1FillFilterOptions();
     const fullIds = d1ReportIds();
     const pages = d1PageCount(fullIds.length);
