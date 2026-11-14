@@ -1287,7 +1287,7 @@
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
         <span class="export-hint" id="d1FaltWhen"></span>
-        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h40</span>
+        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 12h15</span>
         <button class="export-btn" id="btnD1Zerar" type="button" title="zera tudo da Análise D-1: datas, nomes, status, descrições, query de bipagens e a nova consulta (para todos). Os nomes do headcount continuam." style="color:#B91C1C;border-color:#FCA5A5;"><span class="export-icon">🧹</span> Zerar tudo (D-1)</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
         <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
@@ -3903,7 +3903,7 @@
   // texto colado do "Ver atualização": acha o nome de quem bipou
   function d1NameFromUpdate(text){
     const lines = text.split(/\r?\n/).map(s => s.replace(/ /g,' ').trim()).filter(Boolean);
-    const lab = /^(?:escaneado por|usu[aá]rio|operador|respons[aá]vel|colaborador|realizad[oa] por|feito por|auditor|nome)\s*[:\-–\t]?\s*(.*)$/i;
+    const lab = /^(?:(?:c[aâ]mbio|altera[cç][aã]o|mudan[cç]a|atualiza[cç][aã]o)\s+)?(?:escaneado por|usu[aá]rio|operador|respons[aá]vel|colaborador|realizad[oa] por|feito por|auditor|nome)\s*[:\-–\t]?\s*(.*)$/i;
     for(let i=0;i<lines.length;i++){
       const m = lines[i].match(lab);
       if(m){ const v = d1GpName(m[1]) || d1GpName(lines[i+1]) || (/^[a-z]{2,}[._][a-z]{2,}/i.test(m[1]||'') ? m[1].trim() : ''); if(v) return v; }
@@ -3911,9 +3911,24 @@
     for(const l of lines){ for(const part of l.split(/\t/)){ const n = d1GpName(part); if(n) return n; } }
     return '';
   }
+  // janela "Atualização de status" do sistema:
+  // "Cambio realizado por Fulano De Tal" + "13/nov 21:36 hs | Para despachar"
+  function d1ParseAtualizacao(text){
+    if(!/realizad[oa]\s+por/i.test(text)) return null;
+    const lines = text.split(/\r?\n/).map(l => l.replace(/\u00a0/g,' ').trim()).filter(Boolean);
+    const nome = d1NameFromUpdate(text);
+    let dt = null, st = '';
+    lines.forEach(l => { const d = d1GpDate(l); if(d && (!dt || d.t > dt.t)){ dt = d; st = l.includes('|') ? l.split('|').slice(1).join('|').trim() : ''; } });
+    if(!dt && !nome) return null;
+    const set = new Set(d1AllD1());
+    const id = (text.match(/\d{10,13}/g) || []).find(n => set.has(n)) || '';
+    return { id, dt: dt ? dt.v : '', nome, st, onde: 'Atualização de status' };
+  }
   function d1ParsePage(text){
     const gp = d1ParseGestao(text);
     if(gp) return gp;
+    const at = d1ParseAtualizacao(text);
+    if(at) return at;
     const res = { id:'', dt:'', nome:'', st:'' };
     const ids = d1AllD1();
     const set = new Set(ids);
