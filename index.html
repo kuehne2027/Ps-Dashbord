@@ -3225,18 +3225,20 @@
       const rows = [];
       const showDone = !!(document.getElementById('d1ShowDone') || {}).checked;
       let nShown = 0, nHidden = 0;
-      const topo = id => d1Velho(id) || d1NaRodada(id);
+      // os de data de dia anterior só voltam pra lista depois que a primeira análise terminar (nenhum pendente)
+      const terminou = d1PrimeiraTerminou();
+      const topo = id => (terminou && d1Rechecar(id)) || d1NaRodada(id);
       d1DoneFirst(ids.filter(topo)).concat(ids.filter(id => !topo(id))).forEach(id => {
         const r = d1Data[id] || {};
         if(q && !(id.toLowerCase().includes(q) || (r.nome||'').toLowerCase().includes(q) || (r.desc||'').toLowerCase().includes(q))) return;
         const done = r.dt && r.nome;
         // já preenchido (data + nome) sai daqui e fica só no report, que é editável
-        const rechk = d1Velho(id) || d1NaRodada(id); // data de dia anterior ou nova rodada: fica na lista pra consultar de novo
+        const rechk = topo(id); // data de dia anterior (após terminar a análise) ou nova rodada: volta pra lista
         if(done && !rechk && !showDone && !q){ nHidden++; return; }
         nShown++;
         rows.push(`<tr class="${done && !rechk ? 'done' : ''}" data-id="${d1Esc(id)}"${rechk ? ' style="background:#FEF2F2;"' : ''}>
           <td>${nShown}</td>
-          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk && !d1Velho(id) ? '<span class="fg-old">🔄 nova consulta</span>' : ''}${rechk && d1Velho(id) ? (d1Rechecar(id) ? '<span class="fg-old">⟳ dia anterior · consultar de novo</span>' : '<span class="fg-old">⟳ dia anterior · reconsultado ' + d1Esc(d1RevTxt(id)) + ' sem movimento · consultar de novo</span>') : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
+          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk && d1NaRodada(id) ? '<span class="fg-old">🔄 nova consulta</span>' : ''}${rechk && !d1NaRodada(id) ? '<span class="fg-old">⟳ data de dia anterior · consultar de novo' + (d1RevTxt(id) ? ' (último: ' + d1Esc(d1RevTxt(id)) + ')' : '') + '</span>' : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
           <td><input type="datetime-local" data-f="dt" value="${d1Esc(r.dt||'')}"></td>
           <td><input type="text" data-f="nome" list="d1Nomes" placeholder="${r.uid ? d1Esc('Groot ' + r.uid + ' · sem nome') : 'nome de quem bipou'}" value="${d1Esc(r.nome || d1HcName(r.uid) || '')}" ${r.uid && !r.nome ? 'style="border-color:#F59E0B;background:#FFFBEB;"' : ''}></td>
           <td><input type="text" data-f="desc" placeholder="vem da query (detalhe do pacote)" value="${d1Esc(r.desc||'')}"></td>
@@ -3267,7 +3269,7 @@
       const ativos = new Set(ids);
       const todosD1 = new Set(d1AllD1());
       const feitoFora = Object.keys(d1Data).filter(id => todosD1.has(id) && !ativos.has(id) && d1DoCiclo(d1Data[id]) && d1Data[id].dt && d1Data[id].nome && (d1Resolved(id) || d1ProcPelaBase(id))).length;
-      const velhos = d1VelhosParaConsulta(), nova = !pend && velhos.length > 0;
+      const velhos = ids.filter(d1Rechecar), nova = !pend && velhos.length > 0;
       const falta = nova ? velhos.length : pend;
       const feito = nova ? comMov + feitoFora - velhos.length : comMov + feitoFora, tot = feito + falta, pc = tot ? Math.round(feito * 100 / tot) : 0;
       document.querySelector('#d1Prog .d1-prog-n.falta').firstChild.textContent = nova ? '🔁 Nova consulta (data passada) ' : '⏳ Falta analisar ';
@@ -3396,6 +3398,8 @@
   // nova rodada: todos os D-1 já consultados antes do clique voltam pra lista de cima até serem consultados de novo
   function d1Rodada(){ try{ return localStorage.getItem('d1-rodada-' + d1CicloAtual()) || ''; }catch(e){ return ''; } }
   function d1NaRodada(id){ const t = d1Rodada(); if(!t) return false; const r = d1Data[id] || {}; return !!(r.dt && r.nome) && String(r.upd || '') < t; }
+  // primeira análise terminou = todo D-1 ativo já tem data + quem bipou (e nenhum em "nova consulta de todos")
+  function d1PrimeiraTerminou(){ return d1Ids().every(id => { const r = d1Data[id] || {}; return r.dt && r.nome && !d1NaRodada(id); }); }
   function d1VelhosParaConsulta(){ const v = d1Ids().filter(d1Velho); return v.filter(d1Rechecar).concat(v.filter(id => !d1Rechecar(id))); }
   function d1RevTxt(id){
     const r = d1Data[id] || {};
