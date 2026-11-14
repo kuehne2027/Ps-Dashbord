@@ -1287,7 +1287,7 @@
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
         <span class="export-hint" id="d1FaltWhen"></span>
-        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h05</span>
+        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h25</span>
         <button class="export-btn" id="btnD1Zerar" type="button" title="zera tudo da Análise D-1: datas, nomes, status, descrições, query de bipagens e a nova consulta (para todos). Os nomes do headcount continuam." style="color:#B91C1C;border-color:#FCA5A5;"><span class="export-icon">🧹</span> Zerar tudo (D-1)</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
         <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
@@ -1463,7 +1463,7 @@
   }
   let bancoOnlineOk = true, bancoOnlineRetry = 0;
   function avisoBancoLocal(motivo){
-    bancoOnlineOk = false; bancoOnlineRetry = Date.now() + 5*60*1000; // tenta o online de novo em 5 min
+    bancoOnlineOk = false; bancoOnlineRetry = Date.now() + 60*1000; // tenta o online de novo em 1 min
     let el = document.getElementById('avisoBancoLocal');
     if(!el){
       el = document.createElement('div'); el.id = 'avisoBancoLocal';
@@ -4173,11 +4173,11 @@
     try{ Object.keys(localStorage).filter(k => k.indexOf('d1-rodada-') === 0).forEach(k => localStorage.removeItem(k)); }catch(e){}
     try{
       const agora = new Date().toISOString();
-      const { error } = await supabaseClient.from(SUPABASE_TABLE).upsert([
-        { chave: D1_KEY, filename: null, conteudo: '{}', atualizado_em: agora },
-        { chave: D1_BIP_KEY, filename: null, conteudo: '[]', atualizado_em: agora }
-      ], { onConflict: 'chave' });
-      if(error) throw error;
+      // o banco (planilha) grava uma chave por vez
+      const r1 = await supabaseClient.from(SUPABASE_TABLE).upsert({ chave: D1_KEY, filename: null, conteudo: '{}', atualizado_em: agora }, { onConflict: 'chave' });
+      if(r1.error) throw r1.error;
+      const r2 = await supabaseClient.from(SUPABASE_TABLE).upsert({ chave: D1_BIP_KEY, filename: null, conteudo: '[]', atualizado_em: agora }, { onConflict: 'chave' });
+      if(r2.error) throw r2.error;
       d1BipStamp = agora;
       d1SetState('tudo zerado ✓');
     }catch(err){ showError('Não consegui zerar a Análise D-1: ' + (err.message || err)); }
