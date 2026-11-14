@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <title>Kuehne+Nagel · Painel Operacional</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -1286,6 +1287,7 @@
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
         <span class="export-hint" id="d1FaltWhen"></span>
+        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 10h30</span>
         <button class="export-btn" id="btnD1Zerar" type="button" title="zera tudo da Análise D-1: datas, nomes, status, descrições, query de bipagens e a nova consulta (para todos). Os nomes do headcount continuam." style="color:#B91C1C;border-color:#FCA5A5;"><span class="export-icon">🧹</span> Zerar tudo (D-1)</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
         <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
@@ -3228,17 +3230,20 @@
       // os de data de dia anterior só voltam pra lista depois que a primeira análise terminar (nenhum pendente)
       const terminou = d1PrimeiraTerminou();
       const topo = id => (terminou && d1Rechecar(id)) || d1NaRodada(id);
-      d1DoneFirst(ids.filter(topo)).concat(ids.filter(id => !topo(id))).forEach(id => {
+      // durante a análise: o que já foi consultado com data de dia anterior desce pro FINAL da lista (o próximo a consultar fica em cima)
+      const fim = id => { if(terminou || d1NaRodada(id) || !d1Velho(id)) return false; const r = d1Data[id] || {}; return !!(r.dt && r.nome); };
+      d1DoneFirst(ids.filter(topo)).concat(ids.filter(id => !topo(id) && !fim(id))).concat(ids.filter(fim)).forEach(id => {
         const r = d1Data[id] || {};
         if(q && !(id.toLowerCase().includes(q) || (r.nome||'').toLowerCase().includes(q) || (r.desc||'').toLowerCase().includes(q))) return;
         const done = r.dt && r.nome;
         // já preenchido (data + nome) sai daqui e fica só no report, que é editável
-        const rechk = topo(id); // data de dia anterior (após terminar a análise) ou nova rodada: volta pra lista
+        const noFim = fim(id);
+        const rechk = topo(id) || noFim; // data de dia anterior (no fim da lista / volta após terminar) ou nova rodada
         if(done && !rechk && !showDone && !q){ nHidden++; return; }
         nShown++;
         rows.push(`<tr class="${done && !rechk ? 'done' : ''}" data-id="${d1Esc(id)}"${rechk ? ' style="background:#FEF2F2;"' : ''}>
           <td>${nShown}</td>
-          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk && d1NaRodada(id) ? '<span class="fg-old">🔄 nova consulta</span>' : ''}${rechk && !d1NaRodada(id) ? '<span class="fg-old">⟳ data de dia anterior · consultar de novo' + (d1RevTxt(id) ? ' (último: ' + d1Esc(d1RevTxt(id)) + ')' : '') + '</span>' : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
+          <td class="id-cell">${d1Esc(id)} <button class="copy-id" type="button" title="copiar ID" data-copy="${d1Esc(id)}">📋</button><a class="copy-id" href="${D1_MELI_URL}${encodeURIComponent(id)}" target="meliPacote" title="abrir este pacote no sistema" style="text-decoration:none;">🔎</a><div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;">${rechk && d1NaRodada(id) ? '<span class="fg-old">🔄 nova consulta</span>' : ''}${noFim ? '<span class="fg-old">⟳ data de dia anterior · volta pra consulta no fim da análise</span>' : ''}${rechk && !noFim && !d1NaRodada(id) ? '<span class="fg-old">⟳ data de dia anterior · consultar de novo' + (d1RevTxt(id) ? ' (último: ' + d1Esc(d1RevTxt(id)) + ')' : '') + '</span>' : ''}${d1Rota(id) ? '<span class="fg-rota" style="font-size:10.5px;padding:2px 6px;">' + d1Esc(d1Rota(id)) + '</span>' : ''}${d1Detalhe(id) ? '<span class="fg-vol" style="font-size:9.5px;padding:2px 6px;">' + d1Esc(d1Detalhe(id)) + '</span>' : ''}</div></td>
           <td><input type="datetime-local" data-f="dt" value="${d1Esc(r.dt||'')}"></td>
           <td><input type="text" data-f="nome" list="d1Nomes" placeholder="${r.uid ? d1Esc('Groot ' + r.uid + ' · sem nome') : 'nome de quem bipou'}" value="${d1Esc(r.nome || d1HcName(r.uid) || '')}" ${r.uid && !r.nome ? 'style="border-color:#F59E0B;background:#FFFBEB;"' : ''}></td>
           <td><input type="text" data-f="desc" placeholder="vem da query (detalhe do pacote)" value="${d1Esc(r.desc||'')}"></td>
