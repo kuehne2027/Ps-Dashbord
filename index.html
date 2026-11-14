@@ -1287,7 +1287,7 @@
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
         <span class="export-hint" id="d1FaltWhen"></span>
-        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h10</span>
+        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h</span>
         <button class="export-btn" id="btnD1Zerar" type="button" title="zera tudo da Análise D-1: datas, nomes, status, descrições, query de bipagens e a nova consulta (para todos). Os nomes do headcount continuam." style="color:#B91C1C;border-color:#FCA5A5;"><span class="export-icon">🧹</span> Zerar tudo (D-1)</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
         <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
@@ -1346,7 +1346,7 @@
         </span>
       </div>
       <div class="d1-filters" id="d1Filters">
-        <label>Situação<select id="d1FSit" class="d1-filter"><option value="done" selected>Só os já analisados</option><option value="">Todos (inclui não analisados)</option><option value="pend">Aguardando consulta</option></select></label>
+        <label>Situação<select id="d1FSit" class="d1-filter"><option value="">Todos</option><option value="done">Já consultados</option><option value="pend">Aguardando consulta</option></select></label>
         <label>Rota<select id="d1FRota" class="d1-filter"><option value="">Todas</option></select></label>
         <label>Status<select id="d1FStatus" class="d1-filter"><option value="">Todos</option></select></label>
         <label>Tipo<select id="d1FTipo" class="d1-filter"><option value="">Todos</option><option value="vol">Só volumoso</option><option value="nvol">Sem volumoso</option></select></label>
@@ -3455,7 +3455,7 @@
     const now = new Date();
     document.getElementById('d1ReportWhen').textContent = 'Atualizado ' + now.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) + ' às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
     document.getElementById('d1rTotal').textContent = fmt(fullIds.length);
-    document.getElementById('d1FCount').textContent = fullIds.length === all.length ? fmt(all.length) + ' pacotes no report' : fmt(fullIds.length) + ' de ' + fmt(all.length) + ' pacotes D-1' + (((document.getElementById('d1FSit')||{}).value === 'done') ? ' (só os já analisados)' : ' (filtrado)');
+    document.getElementById('d1FCount').textContent = fullIds.length === all.length ? fmt(all.length) + ' pacotes no report' : fmt(fullIds.length) + ' de ' + fmt(all.length) + ' pacotes (filtrado)';
     const nVelho = fullIds.filter(d1Velho).length;
     const nDone = fullIds.filter(d1Done).length - nVelho, nPend = fullIds.length - nDone - nVelho;
     let lastGroup = null;
@@ -3643,7 +3643,7 @@
   ['d1FSit','d1FRota','d1FStatus','d1FTipo','d1FColab'].forEach(x => document.getElementById(x).addEventListener('change', ()=>{ d1Page = 0; renderD1Report(); }));
   document.getElementById('d1FText').addEventListener('input', ()=>{ d1Page = 0; renderD1Report(); });
   document.getElementById('btnD1FClear').addEventListener('click', ()=>{
-    ['d1FSit','d1FRota','d1FStatus','d1FTipo','d1FColab','d1FText'].forEach(x => document.getElementById(x).value = x === 'd1FSit' ? 'done' : '');
+    ['d1FSit','d1FRota','d1FStatus','d1FTipo','d1FColab','d1FText'].forEach(x => document.getElementById(x).value = '');
     d1Page = 0; renderD1Report();
   });
   document.getElementById('d1PageSize').addEventListener('change', ()=>{ d1Page = 0; renderD1Report(); });
