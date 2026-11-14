@@ -1287,7 +1287,7 @@
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
         <span class="export-hint" id="d1FaltWhen"></span>
-        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h25</span>
+        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 11h30</span>
         <button class="export-btn" id="btnD1Zerar" type="button" title="zera tudo da Análise D-1: datas, nomes, status, descrições, query de bipagens e a nova consulta (para todos). Os nomes do headcount continuam." style="color:#B91C1C;border-color:#FCA5A5;"><span class="export-icon">🧹</span> Zerar tudo (D-1)</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
         <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
@@ -2287,17 +2287,10 @@
   function refreshD1Card(){
     const b = lastCardBase; if(!b) return;
     if(typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
-    let d1 = 0, sairam = 0;
-    for(const id of b.d1Ids){
-      let saiu = false;
-      try{ saiu = d1ProcPelaBase(id) || d1Resolved(id); }catch(e){ saiu = false; }
-      if(saiu) sairam++; else d1++;
-    }
-    const d = {totalGeral: b.totalGeral, d1, onWay: b.onWay, recebido: b.recebido, noCarrinho: b.noCarrinho + sairam};
+    // mesma conta do Dashboard da operação (mega2026): todo D-1 que está nos faltantes
+    const d = {totalGeral: b.totalGeral, d1: b.d1Ids.length, onWay: b.onWay, recebido: b.recebido, noCarrinho: b.noCarrinho};
     renderCards(d);
     renderStatusChart(d);
-    const el = document.getElementById('pctD1');
-    if(el && sairam) el.textContent += ' · ' + fmt(sairam) + ' já no carrinho';
   }
 
   function recomputeAll(){
@@ -2334,14 +2327,7 @@
       }
     }
 
-    // pacotes que o CSV de faltantes já mostra no carrinho / pronto pra rota contam como No Carrinho
-    let cartNaBase = 0;
-    for(const r of allRows){
-      const status = statusMap.get(r.id);
-      if(status !== undefined && D1_STATUSES.has(status)) continue; // D-1 é tratado no refreshD1Card
-      if(r.loc && r.loc !== 'Na estação' && r.loc !== 'Caminho para a estação' && D1_LOC_PROC_CARD.test(String(r.loc).normalize('NFD').replace(/[\u0300-\u036f]/g,''))) cartNaBase++;
-    }
-    const noCarrinho = totalGeral - allRows.length + cartNaBase;
+    const noCarrinho = totalGeral - allRows.length;
 
     // "Faltante" IDs = package IDs present in the BASE sheet but absent from the
     // uploaded "faltantes" CSV (base2). Only possible if we could find an ID
@@ -3061,8 +3047,8 @@
     return !/caminho/.test(loc);
   }
   function d1AllD1(){ return (lastMetricIds && lastMetricIds.d1) ? lastMetricIds.d1.slice() : []; }
-  // os mesmos pacotes contados no card D-1 (tira os que já foram pro carrinho / rota / despachar)
-  function d1CardIds(){ return d1AllD1().filter(id => { try{ return !(d1ProcPelaBase(id) || d1Resolved(id)); }catch(e){ return true; } }); }
+  // os mesmos pacotes contados no card D-1 (igual ao mega2026)
+  function d1CardIds(){ return d1AllD1(); }
   // localização do CSV de faltantes indicando que o pacote já foi processado
   const D1_LOC_PROC = /carrinho|pronto\s*(?:para|pra|p\/)?\s*(?:a\s+)?rota|despach|expedid|entregue|in[_\s]*cart|ready/i;
   function d1ProcPelaBase(id){
