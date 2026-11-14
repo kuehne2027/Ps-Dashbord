@@ -1280,6 +1280,7 @@
       <div class="d1-toolbar">
         <button class="export-btn" id="btnD1CopyLines" type="button" disabled><span class="export-icon">📄</span> Copiar IDs (um por linha)</button>
         <button class="export-btn" id="btnD1CopyQuery" type="button" disabled><span class="export-icon">🧾</span> Copiar IDs p/ query (separados por vírgula)</button>
+        <button class="export-btn" id="btnD1CopyOld" type="button" disabled title="IDs com última movimentação de dia anterior, prontos pra uma nova consulta"><span class="export-icon">🔁</span> Copiar IDs com data passada (<b id="d1OldN">0</b>)</button>
         <button class="export-btn" id="btnD1Import" type="button" disabled><span class="export-icon">📥</span> Importar resultado da query</button>
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
@@ -1388,6 +1389,7 @@
         <button class="export-btn" id="btnD1ReportImg" type="button" disabled><span class="export-icon">🖼️</span> Copiar report (imagem única)</button>
         <button class="export-btn" id="btnD1ReportAll" type="button" disabled style="display:none;"><span class="export-icon">🗂️</span> Gerar todas as páginas</button>
         <button class="export-btn" id="btnD1ReportTxt" type="button" disabled><span class="export-icon">💬</span> Copiar report (texto p/ WhatsApp)</button>
+          <button class="export-btn" id="btnD1ReportOld" type="button" disabled title="copia os IDs com data passada separados por vírgula, pra rodar a query de novo"><span class="export-icon">🔁</span> Copiar IDs com data passada (<b id="d1OldN2">0</b>)</button>
         <span class="export-hint" id="d1ReportHint"></span>
       </div>
     </div>
@@ -3249,18 +3251,27 @@
     document.getElementById('d1ComMov').textContent = fmt(comMov);
     document.getElementById('d1ComDesc').textContent = fmt(comDesc);
     document.getElementById('d1Pend').textContent = fmt(pend);
+    try{
+      const nOld = d1VelhosParaConsulta().length;
+      ['d1OldN','d1OldN2'].forEach(x => { const el = document.getElementById(x); if(el) el.textContent = fmt(nOld); });
+      ['btnD1CopyOld','btnD1ReportOld'].forEach(x => { const el = document.getElementById(x); if(el) el.disabled = !nOld; });
+    }catch(e){}
     // progresso: o que já analisei (data + quem bipou) e o que falta, contando também os que analisei e já saíram do D-1
     try{
       const ativos = new Set(ids);
-      const feitoFora = Object.keys(d1Data).filter(id => !ativos.has(id) && d1DoCiclo(d1Data[id]) && d1Data[id].dt && d1Data[id].nome).length;
-      const feito = comMov + feitoFora, tot = feito + pend, pc = tot ? Math.round(feito * 100 / tot) : 0;
+      const todosD1 = new Set(d1AllD1());
+      const feitoFora = Object.keys(d1Data).filter(id => todosD1.has(id) && !ativos.has(id) && d1DoCiclo(d1Data[id]) && d1Data[id].dt && d1Data[id].nome && (d1Resolved(id) || d1ProcPelaBase(id))).length;
+      const velhos = d1VelhosParaConsulta(), nova = !pend && velhos.length > 0;
+      const falta = nova ? velhos.length : pend;
+      const feito = nova ? comMov + feitoFora - velhos.length : comMov + feitoFora, tot = feito + falta, pc = tot ? Math.round(feito * 100 / tot) : 0;
+      document.querySelector('#d1Prog .d1-prog-n.falta').firstChild.textContent = nova ? '🔁 Nova consulta (data passada) ' : '⏳ Falta analisar ';
       const saiu = d1AllD1().filter(id => !ativos.has(id) && !(d1Data[id] && d1Data[id].dt && d1Data[id].nome) && (d1Resolved(id) || d1ProcPelaBase(id))).length;
       document.getElementById('d1PgFeito').textContent = fmt(feito);
-      document.getElementById('d1PgFalta').textContent = fmt(pend);
+      document.getElementById('d1PgFalta').textContent = fmt(falta);
       document.getElementById('d1PgTot').textContent = fmt(tot);
       document.getElementById('d1PgPct').textContent = pc + '%';
       document.getElementById('d1PgBar').style.width = pc + '%';
-      document.getElementById('d1PgSub').textContent = !tot ? '' : (pend ? '' : '🎉 tudo analisado · ') + (feitoFora ? fmt(feitoFora) + ' que você analisou já foram pro carrinho/rota · ' : '') + (saiu ? fmt(saiu) + ' saíram sozinhos (carrinho/rota) antes da análise' : '');
+      document.getElementById('d1PgSub').textContent = !tot ? '' : (nova ? '✅ primeira análise concluída · ' + fmt(velhos.length) + ' estão com data de dia anterior e voltaram pra nova consulta (botão 🔁 copia os IDs) · ' : pend ? '' : '🎉 tudo analisado · ') + (feitoFora ? fmt(feitoFora) + ' que você analisou já foram pro carrinho/rota · ' : '') + (saiu ? fmt(saiu) + ' saíram sozinhos (carrinho/rota) antes da análise' : '');
     }catch(e){ console.warn('progresso D-1:', e); }
     try{ d1UpdateQStatus(); }catch(e){}
     document.getElementById('d1Res').textContent = fmt(d1AllD1().filter(d1Resolved).length);
@@ -3375,6 +3386,8 @@
     const r = d1Data[id] || {}; const t = r.rev ? new Date(r.rev).getTime() : 0;
     return !t || (Date.now() - t) > D1_RECHK_MS;
   }
+  // IDs com última movimentação de dia anterior que ainda não foram reconsultados (nas últimas 2h)
+  function d1VelhosParaConsulta(){ return d1Ids().filter(d1Rechecar); }
   function d1RevTxt(id){
     const r = d1Data[id] || {};
     if(!r.rev) return '';
@@ -3555,6 +3568,11 @@
 
   document.getElementById('btnD1CopyLines').addEventListener('click', ()=> d1Copy(d1Ids().join('\n'), 'd1Hint', d1Ids().length + ' IDs copiados (um por linha)'));
   document.getElementById('btnD1CopyQuery').addEventListener('click', ()=> d1Copy(d1Ids().join(','), 'd1Hint', d1Ids().length + ' IDs copiados separados por vírgula'));
+  ['btnD1CopyOld','btnD1ReportOld'].forEach(b => document.getElementById(b).addEventListener('click', ()=>{
+    const ids = d1VelhosParaConsulta();
+    if(!ids.length) return;
+    d1Copy(ids.join(','), b === 'btnD1CopyOld' ? 'd1Hint' : 'd1ReportHint', ids.length + ' IDs com data passada copiados (separados por vírgula) — rode a query e suba o CSV de novo');
+  }));
   document.getElementById('btnD1Import').addEventListener('click', ()=>{
     const box = document.getElementById('d1ImportBox');
     box.style.display = box.style.display === 'block' ? 'none' : 'block';
@@ -4047,11 +4065,12 @@
     const nome = document.getElementById('d1PNome').value.trim();
     if(!id){ document.getElementById('d1PHint').textContent = 'escolha o pacote'; return; }
     window.__d1Pend = null;
+    const jaTinha = !!(d1DoCiclo(d1Data[id]) && d1Data[id].dt); // já consultado antes = isto é uma reconsulta
     if(dt) d1SetField(id, 'dt', dt);
     if(nome) d1SetField(id, 'nome', nome);
     const st = document.getElementById('d1PSt').value.trim();
     if(st || (d1Data[id] && d1Data[id].st)) d1SetField(id, 'st', st);
-    d1SetField(id, 'rev', new Date().toISOString());
+    if(jaTinha) d1SetField(id, 'rev', new Date().toISOString());
     const saiu = d1Resolved(id);
     renderD1Tab();
     // já prepara o próximo e mostra o que foi salvo
@@ -4391,7 +4410,11 @@
       const sheets = await d1ReadRowsFromFile(f);
       d1Bip = d1ParseBipRows(sheets[0].rows);
       d1BipName = f.name;
+      const jaVelhos = new Set(d1Ids().filter(d1Velho)); // já tinham data passada antes desta query
       const n = d1ApplyBip();
+      // reconsultados pela query: os que continuam com data passada saem da fila de nova consulta por 2h
+      const agora = new Date().toISOString();
+      d1Ids().forEach(id => { if(jaVelhos.has(id) && d1Bip.has(id) && d1Velho(id)) d1SetField(id, 'rev', agora); });
       renderD1Tab();
       d1UpdateQStatus();
       document.getElementById('d1PHint').textContent = n + ' pacotes D-1 preenchidos pela query';
