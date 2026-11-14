@@ -769,7 +769,17 @@
   .d1-empty-val{ color:#94A3B8; }
   .d1-filter{ font:inherit; font-size:12.5px; padding:6px 10px; border:1px solid #D7E0EE; border-radius:8px; min-width:220px; }
 
-  /* ---------- Report D-1 ---------- */
+  /* ---------- progresso da análise D-1 ---------- */
+.d1-prog{ padding:14px 18px 12px; border-bottom:1px solid #E3E8F0; }
+.d1-prog-nums{ display:flex; flex-wrap:wrap; gap:10px 22px; align-items:baseline; }
+.d1-prog-n{ display:flex; align-items:baseline; gap:6px; font-size:12.5px; font-weight:700; color:#5B6B85; text-transform:uppercase; letter-spacing:.04em; }
+.d1-prog-n b{ font-size:26px; font-weight:900; letter-spacing:-.02em; text-transform:none; }
+.d1-prog-n.feito b{ color:#15803D; } .d1-prog-n.falta b{ color:#C2410C; } .d1-prog-n.tot b{ color:#0B2545; }
+.d1-prog-pct{ margin-left:auto; font-size:20px; font-weight:900; color:#0B2545; }
+.d1-prog-track{ height:10px; border-radius:999px; background:#FDE7D6; overflow:hidden; margin-top:10px; }
+.d1-prog-fill{ height:100%; width:0; background:linear-gradient(90deg,#16A34A,#22C55E); border-radius:999px; transition:width .4s ease; }
+.d1-prog-sub{ font-size:12px; color:#5B6B85; margin-top:6px; }
+/* ---------- Report D-1 ---------- */
   .d1-opt{ margin-left:auto; font-size:12.5px; font-weight:600; color:#33415C; display:flex; align-items:center; gap:6px; cursor:pointer; }
   .d1-section-title{ flex-wrap:wrap; }
   .d1r-outer{ overflow-x:auto; padding:4px; }
@@ -1293,6 +1303,16 @@
       </div>
 
       <div class="panel">
+        <div class="d1-prog" id="d1Prog">
+          <div class="d1-prog-nums">
+            <span class="d1-prog-n feito">✅ Já analisei <b id="d1PgFeito">0</b></span>
+            <span class="d1-prog-n falta">⏳ Falta analisar <b id="d1PgFalta">0</b></span>
+            <span class="d1-prog-n tot">de <b id="d1PgTot">0</b> D-1</span>
+            <span class="d1-prog-pct" id="d1PgPct">0%</span>
+          </div>
+          <div class="d1-prog-track"><div class="d1-prog-fill" id="d1PgBar"></div></div>
+          <div class="d1-prog-sub" id="d1PgSub"></div>
+        </div>
         <div class="table-scroll" style="max-height:none;">
           <table class="data-table d1-table">
             <thead>
@@ -2255,6 +2275,24 @@
   }
 
   let lastMetricIds = { d1: [], recebido: [], onWay: [], faltante: [], faltanteAvailable: false };
+  const D1_LOC_PROC_CARD = /carrinho|pronto\s*(?:para|pra|p\/)?\s*(?:a\s+)?rota|despach|expedid|entregue|in[_\s]*cart|ready/i;
+  let lastCardBase = null;
+  // Card D-1: tira os D-1 que já entraram no carrinho / pronto pra rota (pela base de faltantes
+  // ou pelo status consultado na Análise D-1) e soma esses no card No Carrinho
+  function refreshD1Card(){
+    const b = lastCardBase; if(!b) return;
+    let d1 = 0, sairam = 0;
+    for(const id of b.d1Ids){
+      let saiu = false;
+      try{ saiu = d1ProcPelaBase(id) || d1Resolved(id); }catch(e){ saiu = false; }
+      if(saiu) sairam++; else d1++;
+    }
+    const d = {totalGeral: b.totalGeral, d1, onWay: b.onWay, recebido: b.recebido, noCarrinho: b.noCarrinho + sairam};
+    renderCards(d);
+    renderStatusChart(d);
+    const el = document.getElementById('pctD1');
+    if(el && sairam) el.textContent += ' · ' + fmt(sairam) + ' já no carrinho';
+  }
 
   function recomputeAll(){
     const { statusMap, baseIds } = base1Data;
@@ -2290,7 +2328,14 @@
       }
     }
 
-    const noCarrinho = totalGeral - allRows.length;
+    // pacotes que o CSV de faltantes já mostra no carrinho / pronto pra rota contam como No Carrinho
+    let cartNaBase = 0;
+    for(const r of allRows){
+      const status = statusMap.get(r.id);
+      if(status !== undefined && D1_STATUSES.has(status)) continue; // D-1 é tratado no refreshD1Card
+      if(r.loc && r.loc !== 'Na estação' && r.loc !== 'Caminho para a estação' && D1_LOC_PROC_CARD.test(String(r.loc).normalize('NFD').replace(/[\u0300-\u036f]/g,''))) cartNaBase++;
+    }
+    const noCarrinho = totalGeral - allRows.length + cartNaBase;
 
     // "Faltante" IDs = package IDs present in the BASE sheet but absent from the
     // uploaded "faltantes" CSV (base2). Only possible if we could find an ID
@@ -2307,9 +2352,9 @@
     lastMetricIds = { d1: d1Ids, recebido: recebidoIds, onWay: onWayIds, faltante: faltanteIds, faltanteAvailable };
     try{ renderD1Tab(); }catch(e){ console.warn('Análise D-1:', e); }
 
-    renderCards({totalGeral, d1, onWay, recebido, noCarrinho});
+    lastCardBase = {totalGeral, onWay, recebido, noCarrinho, d1Ids: d1Ids.slice()};
+    refreshD1Card();
     renderOrigemChart();
-    renderStatusChart({d1, onWay, recebido, noCarrinho, totalGeral});
     renderEarlyTable();
     renderNaoAtreladosTable(allRows);
     renderIlhasTable(recebidoRows);
@@ -3102,6 +3147,7 @@
       if(data && data.conteudo){
         d1MergeRemote(JSON.parse(data.conteudo));
         if(viewD1.style.display !== 'none') renderD1Tab(true);
+        try{ refreshD1Card(); }catch(e){}
       }
     }catch(err){ console.warn('Não consegui ler a Análise D-1 salva:', err); }
   }
@@ -3137,6 +3183,7 @@
     }finally{
       d1Saving = false;
       renderD1Report();
+      try{ refreshD1Card(); }catch(e){}
     }
   }
 
@@ -3201,6 +3248,19 @@
     document.getElementById('d1ComMov').textContent = fmt(comMov);
     document.getElementById('d1ComDesc').textContent = fmt(comDesc);
     document.getElementById('d1Pend').textContent = fmt(pend);
+    // progresso: o que já analisei (data + quem bipou) e o que falta, contando também os que analisei e já saíram do D-1
+    try{
+      const ativos = new Set(ids);
+      const feitoFora = Object.keys(d1Data).filter(id => !ativos.has(id) && d1DoCiclo(d1Data[id]) && d1Data[id].dt && d1Data[id].nome).length;
+      const feito = comMov + feitoFora, tot = feito + pend, pc = tot ? Math.round(feito * 100 / tot) : 0;
+      const saiu = d1AllD1().filter(id => !ativos.has(id) && !(d1Data[id] && d1Data[id].dt && d1Data[id].nome) && (d1Resolved(id) || d1ProcPelaBase(id))).length;
+      document.getElementById('d1PgFeito').textContent = fmt(feito);
+      document.getElementById('d1PgFalta').textContent = fmt(pend);
+      document.getElementById('d1PgTot').textContent = fmt(tot);
+      document.getElementById('d1PgPct').textContent = pc + '%';
+      document.getElementById('d1PgBar').style.width = pc + '%';
+      document.getElementById('d1PgSub').textContent = !tot ? '' : (pend ? '' : '🎉 tudo analisado · ') + (feitoFora ? fmt(feitoFora) + ' que você analisou já foram pro carrinho/rota · ' : '') + (saiu ? fmt(saiu) + ' saíram sozinhos (carrinho/rota) antes da análise' : '');
+    }catch(e){ console.warn('progresso D-1:', e); }
     try{ d1UpdateQStatus(); }catch(e){}
     document.getElementById('d1Res').textContent = fmt(d1AllD1().filter(d1Resolved).length);
     const proc = d1ProcessadosAposClassificar();
