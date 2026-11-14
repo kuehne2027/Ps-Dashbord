@@ -1287,7 +1287,7 @@
         <label class="export-btn" style="cursor:pointer;" title="sobe o CSV de faltantes mais novo sem sair desta aba"><span class="export-icon">📤</span> Atualizar faltantes (.csv)<input type="file" id="d1FaltFile" accept=".csv" style="display:none;"></label>
         <button class="export-btn" id="btnD1Buscar" type="button" title="puxa a última base que alguém subiu"><span class="export-icon">🔄</span> Buscar atualização</button>
         <span class="export-hint" id="d1FaltWhen"></span>
-        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 12h15</span>
+        <span class="export-hint" style="color:#15803D;font-weight:700;">versão 14/11 12h25</span>
         <button class="export-btn" id="btnD1Zerar" type="button" title="zera tudo da Análise D-1: datas, nomes, status, descrições, query de bipagens e a nova consulta (para todos). Os nomes do headcount continuam." style="color:#B91C1C;border-color:#FCA5A5;"><span class="export-icon">🧹</span> Zerar tudo (D-1)</button>
         <input class="d1-filter" id="d1Filter" type="search" placeholder="buscar ID, nome ou descrição…">
         <label class="d1-opt" style="margin-left:0;"><input type="checkbox" id="d1ShowDone"> mostrar já preenchidos</label>
@@ -3199,16 +3199,6 @@
   function renderD1Tab(keepFocus){
     if(!viewD1) return;
     try{ d1ApplyBip(); }catch(e){ console.warn('Bipagens da query:', e); }
-    // terminou de analisar tudo e ainda sobrou D-1 nos faltantes -> volta todos pro início pra nova rodada de consulta
-    try{
-      if(d1Ids().length && d1PrimeiraTerminou()){
-        const ult = d1Rodada();
-        if(!ult || Date.now() - new Date(ult).getTime() > 60*1000){
-          localStorage.setItem('d1-rodada-' + d1CicloAtual(), new Date().toISOString());
-          const h = document.getElementById('d1Hint'); if(h) setTimeout(() => { h.textContent = '🔄 análise concluída — os ' + d1Ids().length + ' que sobraram no D-1 voltaram pro início pra consultar de novo'; }, 0);
-        }
-      }
-    }catch(e){}
     const ids = d1Ids();
     const has = !!(base1Data && base2Rows);
     ['btnD1CopyLines','btnD1CopyQuery','btnD1Import','btnD1ReportImg','btnD1ReportAll','btnD1ReportTxt'].forEach(b => document.getElementById(b).disabled = !has || ids.length === 0);
@@ -3400,7 +3390,7 @@
   }
   // IDs com última movimentação de dia anterior que ainda não foram reconsultados (nas últimas 2h)
   // nova rodada: todos os D-1 já consultados antes do clique voltam pra lista de cima até serem consultados de novo
-  function d1Rodada(){ try{ return localStorage.getItem('d1-rodada-' + d1CicloAtual()) || ''; }catch(e){ return ''; } }
+  function d1Rodada(){ try{ return localStorage.getItem('d1-rodada2-' + d1CicloAtual()) || ''; }catch(e){ return ''; } }
   function d1NaRodada(id){ const t = d1Rodada(); if(!t) return false; const r = d1Data[id] || {}; return !!(r.dt && r.nome) && String(r.upd || '') < t; }
   // primeira análise terminou = todo D-1 ativo já tem data + quem bipou (e nenhum em "nova consulta de todos")
   function d1PrimeiraTerminou(){ return d1Ids().every(id => { const r = d1Data[id] || {}; return r.dt && r.nome && !d1NaRodada(id); }); }
@@ -3588,7 +3578,7 @@
   document.getElementById('btnD1Rodada').addEventListener('click', ()=>{
     const n = d1Ids().length; if(!n) return;
     if(!confirm('Colocar os ' + n + ' pacotes D-1 de volta na lista pra consultar de novo? O que já foi preenchido continua no report até você atualizar.')) return;
-    try{ localStorage.setItem('d1-rodada-' + d1CicloAtual(), new Date().toISOString()); }catch(e){}
+    try{ localStorage.setItem('d1-rodada2-' + d1CicloAtual(), new Date().toISOString()); }catch(e){}
     renderD1Tab();
     try{ renderD1Report(); }catch(e){}
     const h = document.getElementById('d1Hint'); if(h) h.textContent = n + ' pacotes D-1 disponíveis pra nova consulta';
@@ -4182,7 +4172,7 @@
     clearTimeout(d1SaveTimer);
     d1Data = {}; d1Dirty = {};
     d1Bip = new Map(); d1BipName = '';
-    try{ Object.keys(localStorage).filter(k => k.indexOf('d1-rodada-') === 0).forEach(k => localStorage.removeItem(k)); }catch(e){}
+    try{ Object.keys(localStorage).filter(k => k.indexOf('d1-rodada') === 0).forEach(k => localStorage.removeItem(k)); }catch(e){}
     try{
       const agora = new Date().toISOString();
       // o banco (planilha) grava uma chave por vez
