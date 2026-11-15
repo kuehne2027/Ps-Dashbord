@@ -1958,7 +1958,7 @@
 
   // Lê a aba e devolve as linhas a partir da linha de cabeçalho detectada
   // (aceita título/linhas em branco acima do cabeçalho).
-  const HEADER_HINTS = ['unit_id','status','facility_origin','estimated_arrival','promise_date_end',
+  const HEADER_HINTS = ['unit_id','id_unidad','facility_origem','hora_chegada','promise_date','status','facility_origin','estimated_arrival','promise_date_end',
     'rtg_unit_external_id','status_atual','substatus_atual','origem','otimizado','rtg_route_name',
     'route_plan','parada','shp_facility_id','id do pacote','cidade','bairro','cep'];
   let _sheetRowsCache = new WeakMap();
@@ -1987,7 +1987,7 @@
       const header = getSheetRows(wb, name)[0] || [];
       const has = c => findHeaderIndex(header, [c]) !== -1;
       const isPlan2 = has('rtg_unit_external_id') && has('status_atual');
-      const isPlan1 = has('unit_id') && has('status');
+      const isPlan1 = (has('unit_id') || has('id_unidad')) && has('status');
       const isBase  = !isPlan2 && has('rtg_unit_external_id');
       out.info.push(name);
       if(isPlan2 && !out.plan2) out.plan2 = name;
@@ -2019,7 +2019,7 @@
     }
 
     throw new Error('Não achei os status dos pacotes em nenhuma aba (' + c.info.join(', ') + '). '
-      + 'Preciso de uma aba com as colunas "unit_id" + "status" ou "RTG_UNIT_EXTERNAL_ID" + "STATUS_ATUAL" (o nome da aba não importa).');
+      + 'Preciso de uma aba com as colunas "unit_id" (ou "Id_Unidad") + "status" ou "RTG_UNIT_EXTERNAL_ID" + "STATUS_ATUAL" (o nome da aba não importa).');
   }
 
   // ---------- Formato 1: abas BASE + PLANIFICATION ----------
@@ -2048,12 +2048,12 @@
     const planRows = getSheetRows(wb, planSheetName);
     if(planRows.length < 1) throw new Error('Aba "' + planSheetName + '" está vazia.');
     const header = planRows[0];
-    const idIdx = findHeaderIndex(header, ['unit_id']);
+    const idIdx = findHeaderIndex(header, ['unit_id', 'id_unidad']); // PLANIFICATION nova (nov/2026) usa Id_Unidad
     const statusIdx = findHeaderIndex(header, ['status']);
-    const facilityIdx = findHeaderIndex(header, ['facility_origin']);
-    const promiseEndIdx = findHeaderIndex(header, ['promise_date_end']);
+    const facilityIdx = findHeaderIndex(header, ['facility_origin', 'facility_origem']);
+    const promiseEndIdx = findHeaderIndex(header, ['promise_date_end', 'promise_date']);
     const rotaIdx = findHeaderIndex(header, ['n.º rota', 'numero rota', 'n° rota', 'rota', 'route_id', 'route']);
-    const estArrivalIdx = findHeaderIndex(header, ['estimated_arrival', 'estimated arrival', 'horário estimado chegada', 'horario estimado chegada', 'eta']);
+    const estArrivalIdx = findHeaderIndex(header, ['estimated_arrival', 'estimated arrival', 'horário estimado chegada', 'horario estimado chegada', 'hora_chegada', 'eta']);
     if(idIdx === -1) throw new Error('Não encontrei a coluna "unit_id" na aba "' + planSheetName + '".');
     if(statusIdx === -1) throw new Error('Não encontrei a coluna "status" na aba "' + planSheetName + '".');
 
@@ -2104,7 +2104,13 @@
       let promiseEnd = null;
       if(promiseEndIdx !== -1 && row[promiseEndIdx]){
         const v = row[promiseEndIdx];
-        promiseEnd = (v instanceof Date) ? v : new Date(v);
+        if(v instanceof Date) promiseEnd = v;
+        else {
+          // formato novo: "2026-11-16 - 2026-11-16" (início - fim) → usa o fim
+          const s = String(v).trim(), m = s.match(/(\d{4}-\d{2}-\d{2})(?:[ T]\d{2}:\d{2}(?::\d{2})?)?\s*$/);
+          const d = new Date(m ? (s.length > 12 && /\s-\s/.test(s) ? m[1] + 'T23:59:59' : s) : s);
+          promiseEnd = isNaN(d.getTime()) ? null : d;
+        }
       }
       const rota = (rotaIdx === -1 || row[rotaIdx] === null || row[rotaIdx] === undefined) ? '' : String(row[rotaIdx]).trim();
       records.set(id, { status, facility, promiseEnd, rota });
