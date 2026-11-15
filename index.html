@@ -1279,7 +1279,7 @@
       </div>
 
       <div class="d1-toolbar">
-        <button class="export-btn" id="btnD1CopyLines" type="button" disabled><span class="export-icon">📄</span> Copiar IDs (um por linha)</button>
+        <button class="export-btn" id="btnD1CopyPend" type="button" disabled style="background:#C2410C;color:#fff;border-color:#C2410C;">⏳ Copiar só os pendentes (<span id="d1PendN">0</span>)</button> <button class="export-btn" id="btnD1CopyLines" type="button" disabled><span class="export-icon">📄</span> Copiar IDs (um por linha)</button>
         <button class="export-btn" id="btnD1CopyQuery" type="button" disabled><span class="export-icon">🧾</span> Copiar IDs p/ query (separados por vírgula)</button>
         <button class="export-btn" id="btnD1Rodada" type="button" disabled title="coloca todos os D-1 atuais de volta na lista de cima pra consultar de novo (o que já foi preenchido continua no report)"><span class="export-icon">🔄</span> Nova consulta de todos os D-1 (<b id="d1RodN">0</b>)</button>
         <button class="export-btn" id="btnD1CopyOld" type="button" disabled title="IDs com última movimentação de dia anterior, prontos pra uma nova consulta"><span class="export-icon">🔁</span> Copiar IDs com data passada (<b id="d1OldN">0</b>)</button>
@@ -3251,6 +3251,7 @@
     document.getElementById('d1ComMov').textContent = fmt(comMov);
     document.getElementById('d1ComDesc').textContent = fmt(comDesc);
     document.getElementById('d1Pend').textContent = fmt(pend);
+    try{ const np = d1PendIds().length; document.getElementById('d1PendN').textContent = fmt(np); document.getElementById('btnD1CopyPend').disabled = !np; }catch(e){}
     try{
       const nOld = d1VelhosParaConsulta().length;
       ['d1OldN','d1OldN2'].forEach(x => { const el = document.getElementById(x); if(el) el.textContent = fmt(nOld); });
@@ -3573,6 +3574,8 @@
     return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, raw:false, defval:null });
   }
 
+  function d1PendIds(){ return d1Ids().filter(id => { const r = d1Data[id] || {}; return !(r.dt && r.nome && !d1NaRodada(id)); }); }
+  document.getElementById('btnD1CopyPend').addEventListener('click', ()=> { const p = d1PendIds(); d1Copy(p.join('\n'), 'd1Hint', p.length + ' IDs pendentes copiados (um por linha)'); });
   document.getElementById('btnD1CopyLines').addEventListener('click', ()=> d1Copy(d1Ids().join('\n'), 'd1Hint', d1Ids().length + ' IDs copiados (um por linha)'));
   document.getElementById('btnD1CopyQuery').addEventListener('click', ()=> d1Copy(d1Ids().join(','), 'd1Hint', d1Ids().length + ' IDs copiados separados por vírgula'));
   document.getElementById('btnD1Rodada').addEventListener('click', ()=>{
