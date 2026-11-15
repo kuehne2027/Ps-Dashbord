@@ -3353,10 +3353,11 @@
     const v = x => (document.getElementById(x) || {}).value || '';
     const fSit = v('d1FSit'), fRota = v('d1FRota'), fSt = v('d1FStatus'), fTipo = v('d1FTipo'), fColab = v('d1FColab');
     const fTxt = v('d1FText').trim().toLowerCase();
+    const pendSet = fSit === 'pend' ? new Set(d1PendIds()) : null; // mesmos pendentes do contador da análise
     ids = ids.filter(id => {
       const r = d1Data[id] || {};
       if(fSit === 'done' && !d1Done(id)) return false;
-      if(fSit === 'pend' && d1Done(id)) return false;
+      if(pendSet && !pendSet.has(id)) return false;
       if(fRota && d1Rota(id) !== fRota) return false;
       if(fSt && d1Status(id).label !== fSt) return false;
       const vol = /volum/i.test(d1Detalhe(id));
