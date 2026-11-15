@@ -3057,11 +3057,7 @@
   }
   const D1_MELI_URL = 'https://envios.adminml.com/logistics/package-management/package/';
   // lista da análise = os D-1 que ainda estão nos faltantes (mesmos do card / mega2026), menos os que ainda estão a caminho
-  function d1IdsBase(){ return d1AllD1().filter(id => d1Entrou(id)); }
-  // já está no carrinho / pronto pra rota / despachado (pelo status consultado, pela query ou pela localização do CSV)
-  function d1Saiu(id){ return d1Resolved(id) || d1ProcPelaBase(id); }
-  // lista da análise e report: tira quem já está no carrinho (o card D-1 continua igual ao mega2026)
-  function d1Ids(){ return d1IdsBase().filter(id => !d1Saiu(id)); }
+  function d1Ids(){ return d1AllD1().filter(id => d1Entrou(id)); }
   // pacotes que já classifiquei neste ciclo e que a atualização dos faltantes mostrou como processados
   // (sumiram dos faltantes, mudaram de status na base ou a localização virou carrinho/rota)
   function d1ProcessadosAposClassificar(){
@@ -3352,7 +3348,7 @@
     return { date: m[3] + '/' + m[2], time: m[4] ? (m[4] + ':' + m[5]) : '' };
   }
   function d1ReportIds(){
-    let ids = d1CardIds().filter(id => !d1Saiu(id)); // report = pacotes do card D-1, menos os que já estão no carrinho/rota
+    let ids = d1CardIds(); // report = os mesmos pacotes do card D-1
     const v = x => (document.getElementById(x) || {}).value || '';
     const fSit = v('d1FSit'), fRota = v('d1FRota'), fSt = v('d1FStatus'), fTipo = v('d1FTipo'), fColab = v('d1FColab');
     const fTxt = v('d1FText').trim().toLowerCase();
@@ -3448,8 +3444,7 @@
     const now = new Date();
     document.getElementById('d1ReportWhen').textContent = 'Atualizado ' + now.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) + ' às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
     document.getElementById('d1rTotal').textContent = fmt(fullIds.length);
-    const nCar = all.filter(d1Saiu).length, allR = all.length - nCar;
-    document.getElementById('d1FCount').textContent = (fullIds.length === allR ? fmt(allR) + ' pacotes no report' : fmt(fullIds.length) + ' de ' + fmt(allR) + ' pacotes (filtrado)') + (nCar ? ' · ' + fmt(nCar) + ' já no carrinho/rota (fora do report)' : '');
+    document.getElementById('d1FCount').textContent = fullIds.length === all.length ? fmt(all.length) + ' pacotes no report' : fmt(fullIds.length) + ' de ' + fmt(all.length) + ' pacotes (filtrado)';
     const nVelho = fullIds.filter(d1Velho).length;
     const nDone = fullIds.filter(d1Done).length - nVelho, nPend = fullIds.length - nDone - nVelho;
     let lastGroup = null;
@@ -4292,7 +4287,7 @@
   function d1ApplyBip(){
     if(!d1Bip.size) return 0;
     let changed = 0;
-    d1IdsBase().forEach(id => {
+    d1Ids().forEach(id => {
       const b = d1Bip.get(id); if(!b) return;
       const v = d1BipLocal(b.raw); if(!v) return;
       const r = d1DoCiclo(d1Data[id]) ? d1Data[id] : {};
